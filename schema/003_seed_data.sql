@@ -17,7 +17,7 @@ INSERT INTO rooms (id, code, name, description, monthly_rent, status) VALUES
     ('01HQXYZ010ROOM00000001', 'R1', 'Room 1', 'Ground floor, 2BHK', 5000.00, 'occupied'),
     ('01HQXYZ010ROOM00000002', 'R2', 'Room 2', 'Ground floor, 1BHK', 4000.00, 'occupied'),
     ('01HQXYZ010ROOM00000003', 'R3', 'Room 3', 'First floor, 2BHK', 5500.00, 'occupied'),
-    ('01HQXYZ010ROOM00000004', 'R4', 'Room 4', 'First floor, 1BHK', 4000.00, 'vacant'),
+    ('01HQXYZ010ROOM00000004', 'R4', 'Room 4', 'First floor, 1BHK', 4000.00, 'occupied'),
     ('01HQXYZ010ROOM00000005', 'R5', 'Room 5', 'Second floor, 2BHK', 6000.00, 'occupied'),
     ('01HQXYZ010ROOM00000006', 'R6', 'Room 6', 'Second floor, 1BHK', 4500.00, 'vacant');
 
@@ -62,7 +62,10 @@ INSERT INTO tenant_rooms (id, tenant_id, room_id, move_in_date, move_out_date, i
 INSERT INTO tenant_rooms (id, tenant_id, room_id, move_in_date, move_out_date, is_active) VALUES
     ('01HQXYZ040ALLOC0000004', '01HQXYZ030TENANT000003', '01HQXYZ010ROOM00000005', '2024-01-01', NULL, 1);
 
--- Sneha Gupta has R4 (but inactive/vacated example) - for future use
+-- Sneha Gupta has R4
+INSERT INTO tenant_rooms (id, tenant_id, room_id, move_in_date, move_out_date, is_active) VALUES
+    ('01HQXYZ040ALLOC0000006', '01HQXYZ030TENANT000004', '01HQXYZ010ROOM00000004', '2024-01-01', NULL, 1);
+
 -- Vikram Singh had R6 but vacated
 INSERT INTO tenant_rooms (id, tenant_id, room_id, move_in_date, move_out_date, is_active) VALUES
     ('01HQXYZ040ALLOC0000005', '01HQXYZ030TENANT000005', '01HQXYZ010ROOM00000006', '2024-01-01', '2024-06-30', 0);
@@ -70,13 +73,16 @@ INSERT INTO tenant_rooms (id, tenant_id, room_id, move_in_date, move_out_date, i
 -- ============================================================================
 -- Security Deposits
 -- ============================================================================
-INSERT INTO security_deposits (id, tenant_id, transaction_type, amount, transaction_date, notes, created_by) VALUES
-    ('01HQXYZ050DEPOSIT00001', '01HQXYZ030TENANT000001', 'deposit', 15000.00, '2024-01-15', 'Initial deposit for R1', '01HQXYZ002USER00OPER0001'),
-    ('01HQXYZ050DEPOSIT00002', '01HQXYZ030TENANT000001', 'deposit', 10000.00, '2024-03-01', 'Additional deposit for R3', '01HQXYZ002USER00OPER0001'),
-    ('01HQXYZ050DEPOSIT00003', '01HQXYZ030TENANT000002', 'deposit', 8000.00, '2024-02-01', 'Initial deposit', '01HQXYZ002USER00OPER0001'),
-    ('01HQXYZ050DEPOSIT00004', '01HQXYZ030TENANT000003', 'deposit', 12000.00, '2024-01-01', 'Initial deposit', '01HQXYZ002USER00OPER0001'),
-    ('01HQXYZ050DEPOSIT00005', '01HQXYZ030TENANT000005', 'deposit', 9000.00, '2024-01-01', 'Initial deposit', '01HQXYZ002USER00OPER0001'),
-    ('01HQXYZ050DEPOSIT00006', '01HQXYZ030TENANT000005', 'refund', 9000.00, '2024-06-30', 'Refund on vacation', '01HQXYZ002USER00OPER0001');
+INSERT INTO security_deposits (id, tenant_id, transaction_type, amount, transaction_date, notes, ledger_id, created_by) VALUES
+    ('01HQXYZ050DEPOSIT00001', '01HQXYZ030TENANT000001', 'deposit', 15000.00, '2024-01-15', 'Initial deposit for R1', NULL, '01HQXYZ002USER00OPER0001'),
+    ('01HQXYZ050DEPOSIT00002', '01HQXYZ030TENANT000001', 'deposit', 10000.00, '2024-03-01', 'Additional deposit for R3', NULL, '01HQXYZ002USER00OPER0001'),
+    ('01HQXYZ050DEPOSIT00003', '01HQXYZ030TENANT000002', 'deposit', 8000.00, '2024-02-01', 'Initial deposit', NULL, '01HQXYZ002USER00OPER0001'),
+    ('01HQXYZ050DEPOSIT00004', '01HQXYZ030TENANT000003', 'deposit', 12000.00, '2024-01-01', 'Initial deposit', NULL, '01HQXYZ002USER00OPER0001'),
+    ('01HQXYZ050DEPOSIT00005', '01HQXYZ030TENANT000005', 'deposit', 9000.00, '2024-01-01', 'Initial deposit', NULL, '01HQXYZ002USER00OPER0001'),
+    ('01HQXYZ050DEPOSIT00006', '01HQXYZ030TENANT000005', 'refund', 9000.00, '2024-06-30', 'Refund on vacation', NULL, '01HQXYZ002USER00OPER0001'),
+    -- Sneha Gupta deposits
+    ('01HQXYZ050DEPOSIT00010', '01HQXYZ030TENANT000004', 'deposit', 8000.00, '2024-01-01', 'Initial deposit for R4', NULL, '01HQXYZ002USER00OPER0001'),
+    ('01HQXYZ050DEPOSIT00007', '01HQXYZ030TENANT000004', 'used_for_rent', 4000.00, '2024-02-10', 'Used for Feb rent', '01HQXYZ060LEDGER00031', '01HQXYZ002USER00OPER0001');
 
 -- ============================================================================
 -- Tenant Ledger - Payments and Adjustments
@@ -105,7 +111,13 @@ INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, amount, paymen
     ('01HQXYZ060LEDGER00020', '01HQXYZ030TENANT000003', '2024-01-10', 'payment', 6000.00, 'cash', 'Jan payment', '01HQXYZ002USER00OPER0001'),
     ('01HQXYZ060LEDGER00021', '01HQXYZ030TENANT000003', '2024-02-15', 'payment', 6000.00, 'upi', 'Feb payment', '01HQXYZ002USER00OPER0001'),
     ('01HQXYZ060LEDGER00022', '01HQXYZ030TENANT000003', '2024-03-20', 'payment', 3000.00, 'cash', 'Partial Mar payment', '01HQXYZ002USER00OPER0001'),
-    ('01HQXYZ060LEDGER00023', '01HQXYZ030TENANT000003', '2024-04-10', 'maintenance_credit', 1000.00, NULL, 'Plumbing repair by tenant', '01HQXYZ002USER00OPER0001');
+    ('01HQXYZ060LEDGER00023', '01HQXYZ030TENANT000003', '2024-04-10', 'maintenance', 1000.00, NULL, 'Plumbing repair by tenant', '01HQXYZ002USER00OPER0001');
+
+-- Sneha Gupta - Example of using security deposit for rent
+INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, amount, payment_method, description, reference_id, created_by) VALUES
+    ('01HQXYZ060LEDGER00030', '01HQXYZ030TENANT000004', '2024-01-05', 'payment', 4000.00, 'cash', 'Jan payment', NULL, '01HQXYZ002USER00OPER0001'),
+    ('01HQXYZ060LEDGER00031', '01HQXYZ030TENANT000004', '2024-02-10', 'deposit', 4000.00, NULL, 'Used security deposit for Feb rent', '01HQXYZ050DEPOSIT00007', '01HQXYZ002USER00OPER0001'),
+    ('01HQXYZ060LEDGER00032', '01HQXYZ030TENANT000004', '2024-03-05', 'credit', 0.00, NULL, 'Applied accumulated credit for Mar rent', NULL, '01HQXYZ002USER00OPER0001');
 
 -- ============================================================================
 -- Rent Payments (periods marked as paid)
@@ -130,6 +142,26 @@ INSERT INTO rent_payments (id, tenant_id, for_period, rent_amount, ledger_id, pa
 INSERT INTO rent_payments (id, tenant_id, for_period, rent_amount, ledger_id, paid_at) VALUES
     ('01HQXYZ070RENTPAY00020', '01HQXYZ030TENANT000003', '2024-01', 6000.00, '01HQXYZ060LEDGER00020', '2024-01-10'),
     ('01HQXYZ070RENTPAY00021', '01HQXYZ030TENANT000003', '2024-02', 6000.00, '01HQXYZ060LEDGER00021', '2024-02-15');
+
+-- Sneha Gupta rent payments (demonstrates deposit and credit types)
+INSERT INTO rent_payments (id, tenant_id, for_period, rent_amount, ledger_id, paid_at) VALUES
+    ('01HQXYZ070RENTPAY00030', '01HQXYZ030TENANT000004', '2024-01', 4000.00, '01HQXYZ060LEDGER00030', '2024-01-05'),
+    ('01HQXYZ070RENTPAY00031', '01HQXYZ030TENANT000004', '2024-02', 4000.00, '01HQXYZ060LEDGER00031', '2024-02-10'),
+    ('01HQXYZ070RENTPAY00032', '01HQXYZ030TENANT000004', '2024-03', 4000.00, '01HQXYZ060LEDGER00032', '2024-03-05');
+
+-- ============================================================================
+-- Credit History (sample entries for Sneha Gupta)
+-- ============================================================================
+INSERT INTO credit_history (id, tenant_id, transaction_type, ledger_id, rent_payment_id, opening_balance, amount, closing_balance, description) VALUES
+    -- Jan payment
+    ('01HQXYZ110CREDIT00001', '01HQXYZ030TENANT000004', 'ledger_in', '01HQXYZ060LEDGER00030', NULL, 0.00, 4000.00, 4000.00, 'Payment received'),
+    ('01HQXYZ110CREDIT00002', '01HQXYZ030TENANT000004', 'rent_applied', NULL, '01HQXYZ070RENTPAY00030', 4000.00, -4000.00, 0.00, 'Jan rent applied'),
+    -- Feb - using deposit
+    ('01HQXYZ110CREDIT00003', '01HQXYZ030TENANT000004', 'ledger_in', '01HQXYZ060LEDGER00031', NULL, 0.00, 4000.00, 4000.00, 'Security deposit used'),
+    ('01HQXYZ110CREDIT00004', '01HQXYZ030TENANT000004', 'rent_applied', NULL, '01HQXYZ070RENTPAY00031', 4000.00, -4000.00, 0.00, 'Feb rent applied'),
+    -- Mar - using accumulated credit (from earlier overpayment scenario)
+    ('01HQXYZ110CREDIT00005', '01HQXYZ030TENANT000004', 'ledger_in', '01HQXYZ060LEDGER00032', NULL, 4000.00, 0.00, 4000.00, 'Credit applied (audit entry)'),
+    ('01HQXYZ110CREDIT00006', '01HQXYZ030TENANT000004', 'rent_applied', NULL, '01HQXYZ070RENTPAY00032', 4000.00, -4000.00, 0.00, 'Mar rent applied');
 
 -- ============================================================================
 -- Maintenance Requests
@@ -175,4 +207,7 @@ SELECT * FROM v_monthly_collections;
 
 -- Check security deposit balances
 SELECT * FROM v_security_deposit_balance;
+
+-- Check credit history for Sneha Gupta
+SELECT * FROM v_credit_history WHERE tenant_id = '01HQXYZ030TENANT000004';
 */

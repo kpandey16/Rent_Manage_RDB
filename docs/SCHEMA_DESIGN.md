@@ -160,21 +160,24 @@ All money coming IN - unified ledger for payments, adjustments, and opening bala
 | amount | REAL | Amount (see sign convention below) |
 | payment_method | TEXT | 'cash', 'upi' (for payments only) |
 | description | TEXT | Details/notes |
-| reference_id | TEXT | Link to maintenance_requests, etc. |
+| reference_id | TEXT | Link to maintenance_requests, security_deposits, etc. |
 | created_by | TEXT | FK to users |
 | created_at | TEXT | ISO timestamp |
 
 **Transaction Types & Amount Sign**:
 | Type | Amount Sign | Description |
 |------|-------------|-------------|
-| `payment` | + (positive) | Payment received from tenant |
+| `payment` | + (positive) | Cash/UPI payment received from tenant |
+| `deposit` | + (positive) | Security deposit used for rent |
+| `credit` | 0 (zero) | Accumulated credit applied to rent (audit entry) |
 | `discount` | + (positive) | Ad-hoc discount given |
-| `maintenance_credit` | + (positive) | Maintenance cost credited to tenant |
+| `maintenance` | + (positive) | Maintenance cost credited to tenant |
 | `opening_balance` | +/- | Initial balance when migrating tenant |
 
-**Note on `opening_balance`**:
-- Positive = Tenant had advance/credit in old system
-- Negative = Tenant had dues in old system
+**Notes**:
+- `opening_balance`: Positive = advance/credit, Negative = dues
+- `credit`: Amount is 0, used for audit trail when applying accumulated credit
+- `deposit`: Links to security_deposits entry via reference_id
 
 ---
 
@@ -202,18 +205,26 @@ Tracks security deposit transactions.
 |--------|------|-------------|
 | id | TEXT (ULID) | Primary key |
 | tenant_id | TEXT | FK to tenants |
-| transaction_type | TEXT | 'deposit' or 'refund' |
+| transaction_type | TEXT | 'deposit', 'refund', or 'used_for_rent' |
 | amount | REAL | Always positive |
 | transaction_date | TEXT | Date of transaction |
 | notes | TEXT | Optional notes |
+| ledger_id | TEXT | FK to tenant_ledger (when used_for_rent) |
 | created_by | TEXT | FK to users |
 | created_at | TEXT | ISO timestamp |
+
+**Transaction Types**:
+| Type | Description |
+|------|-------------|
+| `deposit` | Initial or additional deposit received |
+| `refund` | Deposit returned to tenant (on vacation) |
+| `used_for_rent` | Deposit used to pay rent (creates ledger entry with type='deposit') |
 
 **Current Deposit Calculation**:
 ```sql
 SELECT
   SUM(CASE WHEN transaction_type = 'deposit' THEN amount ELSE 0 END) -
-  SUM(CASE WHEN transaction_type = 'refund' THEN amount ELSE 0 END) as current_deposit
+  SUM(CASE WHEN transaction_type IN ('refund', 'used_for_rent') THEN amount ELSE 0 END) as current_deposit
 FROM security_deposits
 WHERE tenant_id = ?
 ```
@@ -252,6 +263,33 @@ Tracks cash withdrawals from collections.
 | notes | TEXT | Purpose/notes |
 | created_by | TEXT | FK to users |
 | created_at | TEXT | ISO timestamp |
+
+---
+
+### 11. `credit_history`
+Tracks credit balance changes for audit trail. Records opening and closing balance for every transaction.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | TEXT (ULID) | Primary key |
+| tenant_id | TEXT | FK to tenants |
+| transaction_type | TEXT | 'ledger_in' or 'rent_applied' |
+| ledger_id | TEXT | FK to tenant_ledger (when transaction_type = 'ledger_in') |
+| rent_payment_id | TEXT | FK to rent_payments (when transaction_type = 'rent_applied') |
+| opening_balance | REAL | Balance before this transaction |
+| amount | REAL | Change amount (+ for ledger_in, - for rent_applied) |
+| closing_balance | REAL | Balance after this transaction |
+| description | TEXT | What caused this change |
+| created_at | TEXT | ISO timestamp |
+
+**Example Flow**:
+| Date | Type | Opening | Amount | Closing | Description |
+|------|------|---------|--------|---------|-------------|
+| Jan 1 | ledger_in | 0 | -10000 | -10000 | Opening balance (dues) |
+| Jan 15 | ledger_in | -10000 | +15000 | +5000 | Payment received |
+| Jan 15 | rent_applied | +5000 | -5000 | 0 | Jan rent applied |
+| Feb 5 | ledger_in | 0 | +8000 | +8000 | Payment received |
+| Feb 5 | rent_applied | +8000 | -5000 | +3000 | Feb rent applied |
 
 ---
 
@@ -496,10 +534,11 @@ The schema includes several useful views:
 | `v_tenant_balance` | Quick tenant credit balance lookup |
 | `v_room_current_status` | Room status with current tenant info |
 | `v_tenant_rooms_with_rent` | Tenant allocations with rent details |
-| `v_security_deposit_balance` | Current security deposit per tenant |
+| `v_security_deposit_balance` | Current security deposit per tenant (includes used_for_rent) |
 | `v_defaulters` | List of tenants with dues |
-| `v_monthly_collections` | Monthly collection summary |
+| `v_monthly_collections` | Monthly collection summary (payments, deposits, discounts, maintenance) |
 | `v_withdrawal_summary` | Withdrawal summary by month |
+| `v_credit_history` | Credit balance timeline for tenants |
 
 ---
 

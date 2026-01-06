@@ -105,16 +105,23 @@ CREATE INDEX idx_tenant_rooms_dates ON tenant_rooms(move_in_date, move_out_date)
 -- ============================================================================
 -- TABLE: tenant_ledger
 -- All money coming IN - unified ledger for payments, adjustments, opening balances
+-- Types:
+--   payment: Cash/UPI payment received
+--   deposit: Security deposit used for rent
+--   credit: Accumulated credit applied to rent (amount=0, for audit)
+--   discount: Ad-hoc discount given
+--   maintenance: Maintenance cost credited to tenant
+--   opening_balance: Migration balance (+/- for credit/dues)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS tenant_ledger (
     id TEXT PRIMARY KEY,
     tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
     transaction_date TEXT NOT NULL,
-    type TEXT NOT NULL CHECK (type IN ('payment', 'discount', 'maintenance_credit', 'opening_balance')),
-    amount REAL NOT NULL, -- Positive for credits, negative for opening_balance dues
+    type TEXT NOT NULL CHECK (type IN ('payment', 'deposit', 'credit', 'discount', 'maintenance', 'opening_balance')),
+    amount REAL NOT NULL, -- Positive for credits, negative for opening_balance dues, 0 for credit type
     payment_method TEXT CHECK (payment_method IS NULL OR payment_method IN ('cash', 'upi')),
     description TEXT,
-    reference_id TEXT, -- Link to maintenance_requests, etc.
+    reference_id TEXT, -- Link to maintenance_requests, security_deposits, etc.
     created_by TEXT REFERENCES users(id),
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -149,14 +156,19 @@ CREATE INDEX idx_rent_payments_paid_at ON rent_payments(paid_at);
 -- ============================================================================
 -- TABLE: security_deposits
 -- Tracks security deposit transactions
+-- Types:
+--   deposit: Initial or additional deposit received
+--   refund: Deposit returned to tenant (on vacation)
+--   used_for_rent: Deposit used to pay rent (creates ledger entry with type='deposit')
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS security_deposits (
     id TEXT PRIMARY KEY,
     tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    transaction_type TEXT NOT NULL CHECK (transaction_type IN ('deposit', 'refund')),
+    transaction_type TEXT NOT NULL CHECK (transaction_type IN ('deposit', 'refund', 'used_for_rent')),
     amount REAL NOT NULL CHECK (amount > 0),
     transaction_date TEXT NOT NULL,
     notes TEXT,
+    ledger_id TEXT REFERENCES tenant_ledger(id), -- Link to ledger entry when used_for_rent
     created_by TEXT REFERENCES users(id),
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -202,6 +214,29 @@ CREATE TABLE IF NOT EXISTS withdrawals (
 );
 
 CREATE INDEX idx_withdrawals_date ON withdrawals(withdrawal_date);
+
+-- ============================================================================
+-- TABLE: credit_history
+-- Tracks credit balance changes for audit trail
+-- Records opening and closing balance for every transaction
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS credit_history (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    transaction_type TEXT NOT NULL CHECK (transaction_type IN ('ledger_in', 'rent_applied')),
+    ledger_id TEXT REFERENCES tenant_ledger(id), -- FK when transaction_type = 'ledger_in'
+    rent_payment_id TEXT REFERENCES rent_payments(id), -- FK when transaction_type = 'rent_applied'
+    opening_balance REAL NOT NULL, -- Balance before this transaction
+    amount REAL NOT NULL, -- Change amount (+ for ledger_in, - for rent_applied)
+    closing_balance REAL NOT NULL, -- Balance after this transaction
+    description TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX idx_credit_history_tenant_id ON credit_history(tenant_id);
+CREATE INDEX idx_credit_history_ledger_id ON credit_history(ledger_id);
+CREATE INDEX idx_credit_history_rent_payment_id ON credit_history(rent_payment_id);
+CREATE INDEX idx_credit_history_created_at ON credit_history(created_at);
 
 -- ============================================================================
 -- ADDITIONAL FEATURE: audit_log
@@ -317,7 +352,12 @@ SELECT
     t.name as tenant_name,
     COALESCE(SUM(CASE WHEN sd.transaction_type = 'deposit' THEN sd.amount ELSE 0 END), 0) as total_deposited,
     COALESCE(SUM(CASE WHEN sd.transaction_type = 'refund' THEN sd.amount ELSE 0 END), 0) as total_refunded,
-    COALESCE(SUM(CASE WHEN sd.transaction_type = 'deposit' THEN sd.amount ELSE -sd.amount END), 0) as current_balance
+    COALESCE(SUM(CASE WHEN sd.transaction_type = 'used_for_rent' THEN sd.amount ELSE 0 END), 0) as used_for_rent,
+    COALESCE(SUM(CASE
+        WHEN sd.transaction_type = 'deposit' THEN sd.amount
+        WHEN sd.transaction_type IN ('refund', 'used_for_rent') THEN -sd.amount
+        ELSE 0
+    END), 0) as current_balance
 FROM tenants t
 LEFT JOIN security_deposits sd ON t.id = sd.tenant_id
 GROUP BY t.id, t.name;
@@ -344,11 +384,12 @@ CREATE VIEW IF NOT EXISTS v_monthly_collections AS
 SELECT
     strftime('%Y-%m', transaction_date) as month,
     SUM(CASE WHEN type = 'payment' THEN amount ELSE 0 END) as total_payments,
+    SUM(CASE WHEN type = 'deposit' THEN amount ELSE 0 END) as total_from_deposits,
     SUM(CASE WHEN type = 'discount' THEN amount ELSE 0 END) as total_discounts,
-    SUM(CASE WHEN type = 'maintenance_credit' THEN amount ELSE 0 END) as total_maintenance_credits,
+    SUM(CASE WHEN type = 'maintenance' THEN amount ELSE 0 END) as total_maintenance,
     COUNT(DISTINCT tenant_id) as unique_tenants
 FROM tenant_ledger
-WHERE type != 'opening_balance'
+WHERE type NOT IN ('opening_balance', 'credit')
 GROUP BY strftime('%Y-%m', transaction_date)
 ORDER BY month DESC;
 
@@ -364,3 +405,27 @@ SELECT
 FROM withdrawals
 GROUP BY strftime('%Y-%m', withdrawal_date)
 ORDER BY month DESC;
+
+-- ============================================================================
+-- VIEW: v_credit_history
+-- Credit balance timeline for tenants
+-- ============================================================================
+CREATE VIEW IF NOT EXISTS v_credit_history AS
+SELECT
+    ch.id,
+    ch.tenant_id,
+    t.name as tenant_name,
+    ch.transaction_type,
+    ch.opening_balance,
+    ch.amount,
+    ch.closing_balance,
+    ch.description,
+    ch.created_at,
+    l.type as ledger_type,
+    l.payment_method,
+    rp.for_period as rent_period
+FROM credit_history ch
+JOIN tenants t ON ch.tenant_id = t.id
+LEFT JOIN tenant_ledger l ON ch.ledger_id = l.id
+LEFT JOIN rent_payments rp ON ch.rent_payment_id = rp.id
+ORDER BY ch.created_at;
