@@ -150,18 +150,16 @@ INSERT INTO rent_payments (id, tenant_id, for_period, rent_amount, ledger_id, pa
     ('01HQXYZ070RENTPAY00032', '01HQXYZ030TENANT000004', '2024-03', 4000.00, '01HQXYZ060LEDGER00032', '2024-03-05');
 
 -- ============================================================================
--- Credit History (sample entries for Sneha Gupta)
+-- Credit History (only tracks when credit is ADDED or USED)
 -- ============================================================================
-INSERT INTO credit_history (id, tenant_id, transaction_type, ledger_id, rent_payment_id, opening_balance, amount, closing_balance, description) VALUES
-    -- Jan payment
-    ('01HQXYZ110CREDIT00001', '01HQXYZ030TENANT000004', 'ledger_in', '01HQXYZ060LEDGER00030', NULL, 0.00, 4000.00, 4000.00, 'Payment received'),
-    ('01HQXYZ110CREDIT00002', '01HQXYZ030TENANT000004', 'rent_applied', NULL, '01HQXYZ070RENTPAY00030', 4000.00, -4000.00, 0.00, 'Jan rent applied'),
-    -- Feb - using deposit
-    ('01HQXYZ110CREDIT00003', '01HQXYZ030TENANT000004', 'ledger_in', '01HQXYZ060LEDGER00031', NULL, 0.00, 4000.00, 4000.00, 'Security deposit used'),
-    ('01HQXYZ110CREDIT00004', '01HQXYZ030TENANT000004', 'rent_applied', NULL, '01HQXYZ070RENTPAY00031', 4000.00, -4000.00, 0.00, 'Feb rent applied'),
-    -- Mar - using accumulated credit (from earlier overpayment scenario)
-    ('01HQXYZ110CREDIT00005', '01HQXYZ030TENANT000004', 'ledger_in', '01HQXYZ060LEDGER00032', NULL, 4000.00, 0.00, 4000.00, 'Credit applied (audit entry)'),
-    ('01HQXYZ110CREDIT00006', '01HQXYZ030TENANT000004', 'rent_applied', NULL, '01HQXYZ070RENTPAY00032', 4000.00, -4000.00, 0.00, 'Mar rent applied');
+
+-- Priya Patel: Paid 8000 for May-Jun (4000 each), so 4000 excess becomes credit
+INSERT INTO credit_history (id, tenant_id, transaction_type, amount, balance_before, balance_after, source, applied_to_period, ledger_id, rent_payment_id, description) VALUES
+    ('01HQXYZ110CREDIT00001', '01HQXYZ030TENANT000002', 'credit_added', 4000.00, 0.00, 4000.00, 'payment_excess', NULL, '01HQXYZ060LEDGER00013', NULL, 'Excess from May-Jun advance payment');
+
+-- Sneha Gupta: Used accumulated credit for Mar rent
+INSERT INTO credit_history (id, tenant_id, transaction_type, amount, balance_before, balance_after, source, applied_to_period, ledger_id, rent_payment_id, description) VALUES
+    ('01HQXYZ110CREDIT00002', '01HQXYZ030TENANT000004', 'credit_used', 4000.00, 4000.00, 0.00, NULL, '2024-03', '01HQXYZ060LEDGER00032', '01HQXYZ070RENTPAY00032', 'Credit applied for Mar rent');
 
 -- ============================================================================
 -- Maintenance Requests

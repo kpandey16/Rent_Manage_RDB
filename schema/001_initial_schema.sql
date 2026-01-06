@@ -217,25 +217,28 @@ CREATE INDEX idx_withdrawals_date ON withdrawals(withdrawal_date);
 
 -- ============================================================================
 -- TABLE: credit_history
--- Tracks credit balance changes for audit trail
--- Records opening and closing balance for every transaction
+-- Tracks ONLY when credit is added or used (not every transaction)
+-- Types:
+--   credit_added: When payment creates excess after rent applied
+--   credit_used: When accumulated credit is used to pay rent
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS credit_history (
     id TEXT PRIMARY KEY,
     tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    transaction_type TEXT NOT NULL CHECK (transaction_type IN ('ledger_in', 'rent_applied')),
-    ledger_id TEXT REFERENCES tenant_ledger(id), -- FK when transaction_type = 'ledger_in'
-    rent_payment_id TEXT REFERENCES rent_payments(id), -- FK when transaction_type = 'rent_applied'
-    opening_balance REAL NOT NULL, -- Balance before this transaction
-    amount REAL NOT NULL, -- Change amount (+ for ledger_in, - for rent_applied)
-    closing_balance REAL NOT NULL, -- Balance after this transaction
+    transaction_type TEXT NOT NULL CHECK (transaction_type IN ('credit_added', 'credit_used')),
+    amount REAL NOT NULL CHECK (amount > 0), -- Always positive
+    balance_before REAL NOT NULL,
+    balance_after REAL NOT NULL,
+    source TEXT, -- For credit_added: 'payment_excess', 'discount', 'maintenance', 'deposit', 'opening_balance'
+    applied_to_period TEXT, -- For credit_used: YYYY-MM format
+    ledger_id TEXT REFERENCES tenant_ledger(id),
+    rent_payment_id TEXT REFERENCES rent_payments(id),
     description TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE INDEX idx_credit_history_tenant_id ON credit_history(tenant_id);
-CREATE INDEX idx_credit_history_ledger_id ON credit_history(ledger_id);
-CREATE INDEX idx_credit_history_rent_payment_id ON credit_history(rent_payment_id);
+CREATE INDEX idx_credit_history_type ON credit_history(transaction_type);
 CREATE INDEX idx_credit_history_created_at ON credit_history(created_at);
 
 -- ============================================================================
@@ -408,7 +411,7 @@ ORDER BY month DESC;
 
 -- ============================================================================
 -- VIEW: v_credit_history
--- Credit balance timeline for tenants
+-- Credit balance timeline for tenants (only credit additions and usage)
 -- ============================================================================
 CREATE VIEW IF NOT EXISTS v_credit_history AS
 SELECT
@@ -416,16 +419,13 @@ SELECT
     ch.tenant_id,
     t.name as tenant_name,
     ch.transaction_type,
-    ch.opening_balance,
     ch.amount,
-    ch.closing_balance,
+    ch.balance_before,
+    ch.balance_after,
+    ch.source,
+    ch.applied_to_period,
     ch.description,
-    ch.created_at,
-    l.type as ledger_type,
-    l.payment_method,
-    rp.for_period as rent_period
+    ch.created_at
 FROM credit_history ch
 JOIN tenants t ON ch.tenant_id = t.id
-LEFT JOIN tenant_ledger l ON ch.ledger_id = l.id
-LEFT JOIN rent_payments rp ON ch.rent_payment_id = rp.id
 ORDER BY ch.created_at;

@@ -267,29 +267,36 @@ Tracks cash withdrawals from collections.
 ---
 
 ### 11. `credit_history`
-Tracks credit balance changes for audit trail. Records opening and closing balance for every transaction.
+Tracks ONLY when credit is added or used (not every transaction).
 
 | Column | Type | Description |
 |--------|------|-------------|
 | id | TEXT (ULID) | Primary key |
 | tenant_id | TEXT | FK to tenants |
-| transaction_type | TEXT | 'ledger_in' or 'rent_applied' |
-| ledger_id | TEXT | FK to tenant_ledger (when transaction_type = 'ledger_in') |
-| rent_payment_id | TEXT | FK to rent_payments (when transaction_type = 'rent_applied') |
-| opening_balance | REAL | Balance before this transaction |
-| amount | REAL | Change amount (+ for ledger_in, - for rent_applied) |
-| closing_balance | REAL | Balance after this transaction |
+| transaction_type | TEXT | 'credit_added' or 'credit_used' |
+| amount | REAL | Always positive |
+| balance_before | REAL | Credit balance before |
+| balance_after | REAL | Credit balance after |
+| source | TEXT | For credit_added: 'payment_excess', 'discount', 'maintenance', 'deposit', 'opening_balance' |
+| applied_to_period | TEXT | For credit_used: YYYY-MM format |
+| ledger_id | TEXT | FK to tenant_ledger |
+| rent_payment_id | TEXT | FK to rent_payments |
 | description | TEXT | What caused this change |
 | created_at | TEXT | ISO timestamp |
 
-**Example Flow**:
-| Date | Type | Opening | Amount | Closing | Description |
-|------|------|---------|--------|---------|-------------|
-| Jan 1 | ledger_in | 0 | -10000 | -10000 | Opening balance (dues) |
-| Jan 15 | ledger_in | -10000 | +15000 | +5000 | Payment received |
-| Jan 15 | rent_applied | +5000 | -5000 | 0 | Jan rent applied |
-| Feb 5 | ledger_in | 0 | +8000 | +8000 | Payment received |
-| Feb 5 | rent_applied | +8000 | -5000 | +3000 | Feb rent applied |
+**When to write to credit_history**:
+- `credit_added`: When payment creates excess after rent is applied
+- `credit_used`: When accumulated credit is used to pay rent (type='credit' in ledger)
+
+**Example**:
+```
+Tenant pays ₹8000, Jan rent is ₹5000:
+→ Excess ₹3000 becomes credit
+→ credit_history: type='credit_added', amount=3000, source='payment_excess'
+
+Next month, uses credit for Feb rent ₹3000:
+→ credit_history: type='credit_used', amount=3000, applied_to_period='2024-02'
+```
 
 ---
 
