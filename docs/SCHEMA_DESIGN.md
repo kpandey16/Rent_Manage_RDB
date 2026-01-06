@@ -446,6 +446,63 @@ CREATE INDEX idx_maintenance_tenant_id ON maintenance_requests(tenant_id);
 
 ---
 
+## Additional Features (Added)
+
+### 11. `audit_log`
+Track important actions for accountability and debugging.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | TEXT (ULID) | Primary key |
+| user_id | TEXT | FK to users (who performed action) |
+| action | TEXT | Action name (e.g., 'tenant.create', 'payment.receive') |
+| entity_type | TEXT | Entity type (e.g., 'tenant', 'room', 'payment') |
+| entity_id | TEXT | ID of affected entity |
+| old_values | TEXT | JSON string of old values (for updates) |
+| new_values | TEXT | JSON string of new values |
+| ip_address | TEXT | Client IP address |
+| user_agent | TEXT | Client user agent |
+| created_at | TEXT | ISO timestamp |
+
+---
+
+### 12. `app_settings`
+Key-value store for application configuration.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| key | TEXT | Primary key - setting name |
+| value | TEXT | Setting value |
+| description | TEXT | Description of setting |
+| updated_by | TEXT | FK to users |
+| updated_at | TEXT | ISO timestamp |
+
+**Default Settings**:
+| Key | Default | Description |
+|-----|---------|-------------|
+| `rent_due_day` | 1 | Day of month when rent is due |
+| `currency` | INR | Currency code |
+| `currency_symbol` | ₹ | Currency symbol |
+| `defaulter_threshold_months` | 1 | Months overdue to be considered defaulter |
+
+---
+
+## Pre-built Views
+
+The schema includes several useful views:
+
+| View | Purpose |
+|------|---------|
+| `v_tenant_balance` | Quick tenant credit balance lookup |
+| `v_room_current_status` | Room status with current tenant info |
+| `v_tenant_rooms_with_rent` | Tenant allocations with rent details |
+| `v_security_deposit_balance` | Current security deposit per tenant |
+| `v_defaulters` | List of tenants with dues |
+| `v_monthly_collections` | Monthly collection summary |
+| `v_withdrawal_summary` | Withdrawal summary by month |
+
+---
+
 ## Notes
 
 1. **ULID vs UUID**: Using ULID for IDs (sortable, URL-safe). Can use UUID if preferred.
