@@ -28,13 +28,13 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 
 // Placeholder data - will come from DB
 const tenants = [
-  { id: "1", name: "Amit Sharma", monthlyRent: 5000, securityDeposit: 10000 },
-  { id: "2", name: "Priya Singh", monthlyRent: 9000, securityDeposit: 18000 },
-  { id: "3", name: "Ramesh Kumar", monthlyRent: 5500, securityDeposit: 11000 },
-  { id: "4", name: "Sunita Devi", monthlyRent: 5000, securityDeposit: 10000 },
-  { id: "5", name: "Suresh Patel", monthlyRent: 5000, securityDeposit: 10000 },
-  { id: "6", name: "Meera Joshi", monthlyRent: 4000, securityDeposit: 8000 },
-  { id: "7", name: "Vikram Rao", monthlyRent: 8000, securityDeposit: 16000 },
+  { id: "1", name: "Amit Sharma", monthlyRent: 5000, securityDeposit: 10000, lastPaidMonth: "Dec-25", creditBalance: 1000, totalDues: 0 },
+  { id: "2", name: "Priya Singh", monthlyRent: 9000, securityDeposit: 18000, lastPaidMonth: "Nov-25", creditBalance: 0, totalDues: 9000 },
+  { id: "3", name: "Ramesh Kumar", monthlyRent: 5500, securityDeposit: 11000, lastPaidMonth: "Dec-25", creditBalance: 500, totalDues: 0 },
+  { id: "4", name: "Sunita Devi", monthlyRent: 5000, securityDeposit: 10000, lastPaidMonth: "Oct-25", creditBalance: 0, totalDues: 15000 },
+  { id: "5", name: "Suresh Patel", monthlyRent: 5000, securityDeposit: 10000, lastPaidMonth: "Dec-25", creditBalance: 0, totalDues: 0 },
+  { id: "6", name: "Meera Joshi", monthlyRent: 4000, securityDeposit: 8000, lastPaidMonth: "Dec-25", creditBalance: 2000, totalDues: 0 },
+  { id: "7", name: "Vikram Rao", monthlyRent: 8000, securityDeposit: 16000, lastPaidMonth: "Nov-25", creditBalance: 0, totalDues: 8000 },
 ];
 
 const paymentTypes = [
@@ -140,6 +140,34 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Tenant Information Display */}
+            {selectedTenant && (
+              <div className="rounded-lg border bg-muted/50 p-4">
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-muted-foreground">Monthly Rent</p>
+                    <p className="font-semibold">₹{selectedTenant.monthlyRent.toLocaleString("en-IN")}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Last Paid Month</p>
+                    <p className="font-semibold">{selectedTenant.lastPaidMonth}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Credit Balance</p>
+                    <p className={`font-semibold ${selectedTenant.creditBalance > 0 ? 'text-green-600' : ''}`}>
+                      ₹{selectedTenant.creditBalance.toLocaleString("en-IN")}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Total Dues</p>
+                    <p className={`font-semibold ${selectedTenant.totalDues > 0 ? 'text-red-600' : ''}`}>
+                      ₹{selectedTenant.totalDues.toLocaleString("en-IN")}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Amount */}
             <div className="grid gap-2">
