@@ -74,7 +74,7 @@ export default function RoomsPage() {
       result = result.filter(
         (room) =>
           room.code.toLowerCase().includes(searchLower) ||
-          room.name.toLowerCase().includes(searchLower) ||
+          room.name?.toLowerCase().includes(searchLower) ||
           room.tenant?.toLowerCase().includes(searchLower) ||
           room.status.toLowerCase().includes(searchLower)
       );
