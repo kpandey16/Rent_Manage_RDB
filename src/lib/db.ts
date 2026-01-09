@@ -1,22 +1,28 @@
 import { createClient, type Client } from "@libsql/client";
 
-let dbInstance: Client | null = null;
+let dbInstance: Client | undefined;
 
-// Lazy initialization of database client (only created when first used at runtime)
-export const db = new Proxy({} as Client, {
-  get: (_, prop) => {
-    if (!dbInstance) {
-      if (!process.env.TURSO_DATABASE_URL) {
-        throw new Error("TURSO_DATABASE_URL environment variable is not set");
-      }
-      dbInstance = createClient({
-        url: process.env.TURSO_DATABASE_URL,
-        authToken: process.env.TURSO_AUTH_TOKEN,
-      });
+// Lazy initialization function - creates client only when first called
+export function getDb(): Client {
+  if (!dbInstance) {
+    if (!process.env.TURSO_DATABASE_URL) {
+      throw new Error("TURSO_DATABASE_URL environment variable is not set");
     }
-    return (dbInstance as any)[prop];
-  },
-});
+    dbInstance = createClient({
+      url: process.env.TURSO_DATABASE_URL,
+      authToken: process.env.TURSO_AUTH_TOKEN,
+    });
+  }
+  return dbInstance;
+}
+
+// For backwards compatibility, export db that calls getDb()
+export const db = {
+  execute: (...args: Parameters<Client['execute']>) => getDb().execute(...args),
+  batch: (...args: Parameters<Client['batch']>) => getDb().batch(...args),
+  transaction: (...args: Parameters<Client['transaction']>) => getDb().transaction(...args),
+  close: () => getDb().close(),
+};
 
 // Helper to generate ULID-like IDs
 export function generateId(): string {
