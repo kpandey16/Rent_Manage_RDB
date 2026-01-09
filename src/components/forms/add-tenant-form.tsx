@@ -14,7 +14,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus } from "lucide-react";
+import { Plus, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 interface AddTenantFormProps {
   trigger?: React.ReactNode;
@@ -33,6 +34,7 @@ export interface TenantFormData {
 
 export function AddTenantForm({ trigger, onSubmit }: AddTenantFormProps) {
   const [open, setOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState<TenantFormData>({
     name: "",
     phone: "",
@@ -43,20 +45,47 @@ export function AddTenantForm({ trigger, onSubmit }: AddTenantFormProps) {
     notes: "",
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit?.(formData);
-    setOpen(false);
-    // Reset form
-    setFormData({
-      name: "",
-      phone: "",
-      email: "",
-      moveInDate: format(new Date(), "yyyy-MM-dd"),
-      securityDeposit: 0,
-      openingBalance: 0,
-      notes: "",
-    });
+    try {
+      setSubmitting(true);
+      const response = await fetch("/api/tenants", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formData.name,
+          phone: formData.phone,
+          address: formData.notes, // Using notes as address
+          openingBalance: formData.openingBalance || 0,
+          securityDeposit: formData.securityDeposit || 0,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to add tenant");
+      }
+
+      const data = await response.json();
+      toast.success(data.message || "Tenant added successfully");
+      onSubmit?.(formData);
+      setOpen(false);
+      // Reset form
+      setFormData({
+        name: "",
+        phone: "",
+        email: "",
+        moveInDate: format(new Date(), "yyyy-MM-dd"),
+        securityDeposit: 0,
+        openingBalance: 0,
+        notes: "",
+      });
+    } catch (error) {
+      console.error("Error adding tenant:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to add tenant");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -87,6 +116,7 @@ export function AddTenantForm({ trigger, onSubmit }: AddTenantFormProps) {
                 value={formData.name}
                 onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
                 placeholder="Enter tenant name"
+                disabled={submitting}
                 required
               />
             </div>
@@ -100,6 +130,7 @@ export function AddTenantForm({ trigger, onSubmit }: AddTenantFormProps) {
                 value={formData.phone}
                 onChange={(e) => setFormData((prev) => ({ ...prev, phone: e.target.value }))}
                 placeholder="9876543210"
+                disabled={submitting}
                 required
               />
             </div>
@@ -113,6 +144,7 @@ export function AddTenantForm({ trigger, onSubmit }: AddTenantFormProps) {
                 value={formData.email}
                 onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
                 placeholder="tenant@email.com"
+                disabled={submitting}
               />
             </div>
 
@@ -124,6 +156,7 @@ export function AddTenantForm({ trigger, onSubmit }: AddTenantFormProps) {
                 type="date"
                 value={formData.moveInDate}
                 onChange={(e) => setFormData((prev) => ({ ...prev, moveInDate: e.target.value }))}
+                disabled={submitting}
                 required
               />
             </div>
@@ -142,6 +175,7 @@ export function AddTenantForm({ trigger, onSubmit }: AddTenantFormProps) {
                   onChange={(e) => setFormData((prev) => ({ ...prev, securityDeposit: Number(e.target.value) }))}
                   className="pl-7"
                   placeholder="0"
+                  disabled={submitting}
                 />
               </div>
             </div>
@@ -162,6 +196,7 @@ export function AddTenantForm({ trigger, onSubmit }: AddTenantFormProps) {
                   onChange={(e) => setFormData((prev) => ({ ...prev, openingBalance: Number(e.target.value) }))}
                   className="pl-7"
                   placeholder="0"
+                  disabled={submitting}
                 />
               </div>
             </div>
@@ -175,15 +210,17 @@ export function AddTenantForm({ trigger, onSubmit }: AddTenantFormProps) {
                 value={formData.notes}
                 onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
                 placeholder="Additional notes..."
+                disabled={submitting}
               />
             </div>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={submitting}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!formData.name || !formData.phone}>
-              Add Tenant
+            <Button type="submit" disabled={!formData.name || !formData.phone || submitting}>
+              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {submitting ? "Adding..." : "Add Tenant"}
             </Button>
           </DialogFooter>
         </form>

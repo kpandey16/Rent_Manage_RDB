@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import {
   Dialog,
@@ -23,19 +23,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Info } from "lucide-react";
+import { Plus, Info, Loader2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { toast } from "sonner";
 
-// Placeholder data - will come from DB
-const tenants = [
-  { id: "1", name: "Amit Sharma", monthlyRent: 5000, securityDeposit: 10000 },
-  { id: "2", name: "Priya Singh", monthlyRent: 9000, securityDeposit: 18000 },
-  { id: "3", name: "Ramesh Kumar", monthlyRent: 5500, securityDeposit: 11000 },
-  { id: "4", name: "Sunita Devi", monthlyRent: 5000, securityDeposit: 10000 },
-  { id: "5", name: "Suresh Patel", monthlyRent: 5000, securityDeposit: 10000 },
-  { id: "6", name: "Meera Joshi", monthlyRent: 4000, securityDeposit: 8000 },
-  { id: "7", name: "Vikram Rao", monthlyRent: 8000, securityDeposit: 16000 },
-];
+interface Tenant {
+  id: string;
+  name: string;
+  monthlyRent: number;
+  securityDeposit: number;
+  lastPaidMonth: string | null;
+  creditBalance: number;
+  totalDues: number;
+}
 
 const paymentTypes = [
   { value: "payment", label: "Payment", category: "income" },
@@ -70,6 +70,10 @@ export interface PaymentFormData {
 
 export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps) {
   const [open, setOpen] = useState(false);
+  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [formData, setFormData] = useState<PaymentFormData>({
     tenantId: "",
     amount: 0,
@@ -79,21 +83,83 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
     notes: "",
   });
 
-  const selectedTenant = tenants.find((t) => t.id === formData.tenantId);
+  // Fetch tenants when dialog opens
+  useEffect(() => {
+    if (open) {
+      fetchTenants();
+    }
+  }, [open]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Fetch tenant details when tenant is selected
+  useEffect(() => {
+    if (formData.tenantId) {
+      fetchTenantDetails(formData.tenantId);
+    } else {
+      setSelectedTenant(null);
+    }
+  }, [formData.tenantId]);
+
+  const fetchTenants = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch("/api/tenants");
+      if (!response.ok) throw new Error("Failed to fetch tenants");
+      const data = await response.json();
+      setTenants(data.tenants || []);
+    } catch (error) {
+      console.error("Error fetching tenants:", error);
+      toast.error("Failed to load tenants");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchTenantDetails = async (tenantId: string) => {
+    try {
+      const response = await fetch(`/api/tenants/${tenantId}`);
+      if (!response.ok) throw new Error("Failed to fetch tenant details");
+      const data = await response.json();
+      setSelectedTenant(data.tenant);
+    } catch (error) {
+      console.error("Error fetching tenant details:", error);
+      toast.error("Failed to load tenant details");
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit?.(formData);
-    setOpen(false);
-    // Reset form
-    setFormData({
-      tenantId: "",
-      amount: 0,
-      type: "payment",
-      method: "cash",
-      date: format(new Date(), "yyyy-MM-dd"),
-      notes: "",
-    });
+    try {
+      setSubmitting(true);
+      const response = await fetch("/api/transactions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to record transaction");
+      }
+
+      const data = await response.json();
+      toast.success(data.message || "Transaction recorded successfully");
+      onSubmit?.(formData);
+      setOpen(false);
+      // Reset form
+      setFormData({
+        tenantId: "",
+        amount: 0,
+        type: "payment",
+        method: "cash",
+        date: format(new Date(), "yyyy-MM-dd"),
+        notes: "",
+      });
+    } catch (error) {
+      console.error("Error recording transaction:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to record transaction");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleQuickFill = () => {
@@ -127,19 +193,52 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
               <Select
                 value={formData.tenantId}
                 onValueChange={(value) => setFormData((prev) => ({ ...prev, tenantId: value }))}
+                disabled={loading || submitting}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select tenant" />
+                  <SelectValue placeholder={loading ? "Loading tenants..." : "Select tenant"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {tenants.map((tenant) => (
-                    <SelectItem key={tenant.id} value={tenant.id}>
-                      {tenant.name} (₹{tenant.monthlyRent.toLocaleString("en-IN")}/mo)
-                    </SelectItem>
-                  ))}
+                  {tenants.length === 0 ? (
+                    <SelectItem value="none" disabled>No tenants found</SelectItem>
+                  ) : (
+                    tenants.map((tenant) => (
+                      <SelectItem key={tenant.id} value={tenant.id}>
+                        {tenant.name} (₹{(tenant.monthlyRent || 0).toLocaleString("en-IN")}/mo)
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Tenant Information Display */}
+            {selectedTenant && (
+              <div className="rounded-lg border bg-muted/50 p-4">
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-muted-foreground">Monthly Rent</p>
+                    <p className="font-semibold">₹{selectedTenant.monthlyRent.toLocaleString("en-IN")}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Last Paid Month</p>
+                    <p className="font-semibold">{selectedTenant.lastPaidMonth}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Credit Balance</p>
+                    <p className={`font-semibold ${selectedTenant.creditBalance > 0 ? 'text-green-600' : ''}`}>
+                      ₹{selectedTenant.creditBalance.toLocaleString("en-IN")}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Total Dues</p>
+                    <p className={`font-semibold ${selectedTenant.totalDues > 0 ? 'text-red-600' : ''}`}>
+                      ₹{selectedTenant.totalDues.toLocaleString("en-IN")}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Amount */}
             <div className="grid gap-2">
@@ -168,6 +267,7 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
                   onChange={(e) => setFormData((prev) => ({ ...prev, amount: Number(e.target.value) }))}
                   className="pl-7"
                   placeholder="0"
+                  disabled={submitting}
                   required
                 />
               </div>
@@ -179,6 +279,7 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
               <Select
                 value={formData.type}
                 onValueChange={(value) => setFormData((prev) => ({ ...prev, type: value }))}
+                disabled={submitting}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -220,6 +321,7 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
               <Select
                 value={formData.method}
                 onValueChange={(value) => setFormData((prev) => ({ ...prev, method: value }))}
+                disabled={submitting}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -242,6 +344,7 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
                 type="date"
                 value={formData.date}
                 onChange={(e) => setFormData((prev) => ({ ...prev, date: e.target.value }))}
+                disabled={submitting}
                 required
               />
             </div>
@@ -254,16 +357,18 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
                 type="text"
                 value={formData.notes}
                 onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
+                disabled={submitting}
                 placeholder="Additional notes..."
               />
             </div>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={submitting}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!formData.tenantId || !formData.amount}>
-              Record Payment
+            <Button type="submit" disabled={!formData.tenantId || !formData.amount || submitting}>
+              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {submitting ? "Recording..." : "Record Payment"}
             </Button>
           </DialogFooter>
         </form>

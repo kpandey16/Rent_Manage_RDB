@@ -15,6 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ArrowLeft, User, IndianRupee, Calendar, History, Edit } from "lucide-react";
+import { AllocateRoomForm } from "@/components/forms/allocate-room-form";
 
 // Placeholder data - will be fetched from DB based on ID
 const roomData = {
@@ -86,7 +87,11 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
             )}
           </div>
           {room.status === "vacant" && (
-            <Button className="w-full">Allocate to Tenant</Button>
+            <AllocateRoomForm
+              preSelectedRoomId={room.id}
+              onSubmit={(data) => console.log("Room allocation submitted:", data)}
+              trigger={<Button className="w-full">Allocate to Tenant</Button>}
+            />
           )}
         </CardContent>
       </Card>

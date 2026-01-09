@@ -1,12 +1,21 @@
-import { createClient } from "@libsql/client";
+import { createClient, type Client } from "@libsql/client";
 
-if (!process.env.TURSO_DATABASE_URL) {
-  throw new Error("TURSO_DATABASE_URL environment variable is not set");
-}
+let dbInstance: Client | null = null;
 
-export const db = createClient({
-  url: process.env.TURSO_DATABASE_URL,
-  authToken: process.env.TURSO_AUTH_TOKEN,
+// Lazy initialization of database client (only created when first used at runtime)
+export const db = new Proxy({} as Client, {
+  get: (_, prop) => {
+    if (!dbInstance) {
+      if (!process.env.TURSO_DATABASE_URL) {
+        throw new Error("TURSO_DATABASE_URL environment variable is not set");
+      }
+      dbInstance = createClient({
+        url: process.env.TURSO_DATABASE_URL,
+        authToken: process.env.TURSO_AUTH_TOKEN,
+      });
+    }
+    return (dbInstance as any)[prop];
+  },
 });
 
 // Helper to generate ULID-like IDs
