@@ -99,7 +99,7 @@ export default function TenantsPage() {
     });
 
     return result;
-  }, [search, sortBy]);
+  }, [tenants, search, sortBy]);
 
   const handleAddTenant = () => {
     // Refresh the tenant list after adding

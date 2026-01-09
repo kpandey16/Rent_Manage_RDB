@@ -101,7 +101,7 @@ export default function RoomsPage() {
     });
 
     return result;
-  }, [search, sortBy]);
+  }, [rooms, search, sortBy]);
 
   const handleAddRoom = () => {
     // Refresh the rooms list after adding
