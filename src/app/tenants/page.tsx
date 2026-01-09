@@ -46,8 +46,8 @@ export default function TenantsPage() {
         id: t.id,
         name: t.name,
         phone: t.phone,
-        rooms: [], // Will be populated when we have room data
-        balance: 0, // Placeholder - calculate from ledger
+        rooms: t.room_codes ? t.room_codes.split(',').filter(Boolean) : [],
+        balance: Number(t.total_credits || 0) - Number(t.total_rent_paid || 0),
         isActive: t.is_active === 1,
       }));
 

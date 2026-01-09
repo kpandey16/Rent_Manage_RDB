@@ -102,6 +102,7 @@ export async function GET() {
       sql: `SELECT
               t.*,
               COUNT(DISTINCT CASE WHEN tr.is_active = 1 THEN tr.id END) as active_rooms_count,
+              GROUP_CONCAT(DISTINCT CASE WHEN tr.is_active = 1 THEN r.code END) as room_codes,
               COALESCE(SUM(DISTINCT sd.amount *
                 CASE
                   WHEN sd.transaction_type = 'deposit' THEN 1
@@ -109,9 +110,16 @@ export async function GET() {
                   WHEN sd.transaction_type = 'used_for_rent' THEN -1
                   ELSE 0
                 END
-              ), 0) as security_deposit_balance
+              ), 0) as security_deposit_balance,
+              COALESCE((
+                SELECT SUM(amount) FROM tenant_ledger WHERE tenant_id = t.id
+              ), 0) as total_credits,
+              COALESCE((
+                SELECT SUM(rent_amount) FROM rent_payments WHERE tenant_id = t.id
+              ), 0) as total_rent_paid
             FROM tenants t
             LEFT JOIN tenant_rooms tr ON t.id = tr.tenant_id
+            LEFT JOIN rooms r ON tr.room_id = r.id
             LEFT JOIN security_deposits sd ON t.id = sd.tenant_id
             WHERE t.is_active = 1
             GROUP BY t.id
