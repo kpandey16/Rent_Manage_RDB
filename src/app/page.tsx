@@ -4,9 +4,7 @@ import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DoorOpen, Users, AlertTriangle, IndianRupee } from "lucide-react";
 import { SearchFilter } from "@/components/search-filter";
-import { TenantOverviewTable, TenantOverview } from "@/components/tenant-overview-table";
-import { DefaultersChart } from "@/components/charts/defaulters-chart";
-import { CollectionChart } from "@/components/charts/collection-chart";
+import { TenantOverviewTable, TenantOverview, SortField, SortDirection } from "@/components/tenant-overview-table";
 
 // Placeholder data - will be fetched from DB
 const stats = {
@@ -17,26 +15,6 @@ const stats = {
   totalDues: 60000,
   thisMonthCollection: 45000,
 };
-
-const defaultersData = {
-  twoMonths: 2,
-  threeMonths: 1,
-  fourPlusMonths: 1,
-};
-
-const weeklyCollectionData = [
-  { label: "W1", amount: 12000 },
-  { label: "W2", amount: 18000 },
-  { label: "W3", amount: 8000 },
-  { label: "W4", amount: 7000 },
-];
-
-const monthlyCollectionData = [
-  { label: "Oct", amount: 48000 },
-  { label: "Nov", amount: 45000 },
-  { label: "Dec", amount: 52000 },
-  { label: "Jan", amount: 45000 },
-];
 
 const tenantsOverview: TenantOverview[] = [
   { id: "1", name: "Amit Sharma", rooms: ["R1"], monthlyRent: 5000, lastPaidMonth: "Jan-26", pendingMonths: 0, totalDues: 0, securityDeposit: 10000, creditBalance: 500 },
@@ -54,22 +32,59 @@ export default function Home() {
     securityDeposit: false,
     creditBalance: false,
   });
+  const [sortField, setSortField] = useState<SortField>("name");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
-  const filteredTenants = useMemo(() => {
-    if (!search.trim()) return tenantsOverview;
-    const searchLower = search.toLowerCase();
-    return tenantsOverview.filter(
-      (tenant) =>
-        tenant.name.toLowerCase().includes(searchLower) ||
-        tenant.rooms.some((room) => room.toLowerCase().includes(searchLower))
-    );
-  }, [search]);
+  const filteredAndSortedTenants = useMemo(() => {
+    let result = tenantsOverview;
+
+    // Filter
+    if (search.trim()) {
+      const searchLower = search.toLowerCase();
+      result = result.filter(
+        (tenant) =>
+          tenant.name.toLowerCase().includes(searchLower) ||
+          tenant.rooms.some((room) => room.toLowerCase().includes(searchLower))
+      );
+    }
+
+    // Sort
+    result = [...result].sort((a, b) => {
+      let comparison = 0;
+      switch (sortField) {
+        case "name":
+          comparison = a.name.localeCompare(b.name);
+          break;
+        case "rent":
+          comparison = a.monthlyRent - b.monthlyRent;
+          break;
+        case "pending":
+          comparison = a.pendingMonths - b.pendingMonths;
+          break;
+        case "dues":
+          comparison = a.totalDues - b.totalDues;
+          break;
+      }
+      return sortDirection === "asc" ? comparison : -comparison;
+    });
+
+    return result;
+  }, [search, sortField, sortDirection]);
 
   const handleToggleColumn = (column: "securityDeposit" | "creditBalance") => {
     setShowOptionalColumns((prev) => ({
       ...prev,
       [column]: !prev[column],
     }));
+  };
+
+  const handleSort = (field: SortField) => {
+    if (field === sortField) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
   };
 
   return (
@@ -129,12 +144,6 @@ export default function Home() {
         </Card>
       </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <DefaultersChart data={defaultersData} />
-        <CollectionChart weeklyData={weeklyCollectionData} monthlyData={monthlyCollectionData} />
-      </div>
-
       {/* Tenant Overview Table */}
       <Card>
         <CardHeader className="pb-3">
@@ -151,9 +160,12 @@ export default function Home() {
         </CardHeader>
         <CardContent>
           <TenantOverviewTable
-            tenants={filteredTenants}
+            tenants={filteredAndSortedTenants}
             showOptionalColumns={showOptionalColumns}
             onToggleColumn={handleToggleColumn}
+            sortField={sortField}
+            sortDirection={sortDirection}
+            onSort={handleSort}
           />
         </CardContent>
       </Card>

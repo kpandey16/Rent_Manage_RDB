@@ -11,13 +11,20 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Settings2 } from "lucide-react";
+import { Settings2, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export interface TenantOverview {
   id: string;
@@ -31,6 +38,9 @@ export interface TenantOverview {
   creditBalance?: number;
 }
 
+export type SortField = "name" | "rent" | "pending" | "dues";
+export type SortDirection = "asc" | "desc";
+
 interface TenantOverviewTableProps {
   tenants: TenantOverview[];
   showOptionalColumns: {
@@ -38,16 +48,100 @@ interface TenantOverviewTableProps {
     creditBalance: boolean;
   };
   onToggleColumn: (column: "securityDeposit" | "creditBalance") => void;
+  sortField: SortField;
+  sortDirection: SortDirection;
+  onSort: (field: SortField) => void;
+}
+
+function SortableHeader({
+  children,
+  field,
+  currentField,
+  currentDirection,
+  onSort,
+  className,
+}: {
+  children: React.ReactNode;
+  field: SortField;
+  currentField: SortField;
+  currentDirection: SortDirection;
+  onSort: (field: SortField) => void;
+  className?: string;
+}) {
+  const isActive = field === currentField;
+  return (
+    <TableHead className={className}>
+      <button
+        onClick={() => onSort(field)}
+        className="flex items-center gap-1 hover:text-foreground transition-colors"
+      >
+        {children}
+        {isActive ? (
+          currentDirection === "asc" ? (
+            <ArrowUp className="h-3 w-3" />
+          ) : (
+            <ArrowDown className="h-3 w-3" />
+          )
+        ) : (
+          <ArrowUpDown className="h-3 w-3 opacity-50" />
+        )}
+      </button>
+    </TableHead>
+  );
 }
 
 export function TenantOverviewTable({
   tenants,
   showOptionalColumns,
   onToggleColumn,
+  sortField,
+  sortDirection,
+  onSort,
 }: TenantOverviewTableProps) {
+  const sortOptions = [
+    { value: "name-asc", label: "Name (A-Z)" },
+    { value: "name-desc", label: "Name (Z-A)" },
+    { value: "rent-desc", label: "Rent (High-Low)" },
+    { value: "rent-asc", label: "Rent (Low-High)" },
+    { value: "pending-desc", label: "Pending (Most)" },
+    { value: "pending-asc", label: "Pending (Least)" },
+    { value: "dues-desc", label: "Dues (High-Low)" },
+    { value: "dues-asc", label: "Dues (Low-High)" },
+  ];
+
+  const currentSortValue = `${sortField}-${sortDirection}`;
+
+  const handleMobileSortChange = (value: string) => {
+    const [field, direction] = value.split("-") as [SortField, SortDirection];
+    // Trigger sort - parent will handle the logic
+    if (field !== sortField) {
+      onSort(field);
+    }
+    if (direction !== sortDirection) {
+      onSort(field); // Toggle direction by calling sort again
+    }
+  };
+
   return (
     <div className="space-y-2">
-      <div className="flex justify-end">
+      <div className="flex justify-between gap-2">
+        {/* Mobile Sort */}
+        <div className="md:hidden flex-1">
+          <Select value={currentSortValue} onValueChange={handleMobileSortChange}>
+            <SelectTrigger className="h-8">
+              <ArrowUpDown className="h-4 w-4 mr-2" />
+              <SelectValue placeholder="Sort" />
+            </SelectTrigger>
+            <SelectContent>
+              {sortOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="hidden md:block" />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="h-8">
@@ -132,12 +226,43 @@ export function TenantOverviewTable({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Tenant</TableHead>
+              <SortableHeader
+                field="name"
+                currentField={sortField}
+                currentDirection={sortDirection}
+                onSort={onSort}
+              >
+                Tenant
+              </SortableHeader>
               <TableHead>Rooms</TableHead>
-              <TableHead className="text-right">Monthly Rent</TableHead>
+              <SortableHeader
+                field="rent"
+                currentField={sortField}
+                currentDirection={sortDirection}
+                onSort={onSort}
+                className="text-right"
+              >
+                Monthly Rent
+              </SortableHeader>
               <TableHead>Last Paid</TableHead>
-              <TableHead className="text-center">Pending</TableHead>
-              <TableHead className="text-right">Total Dues</TableHead>
+              <SortableHeader
+                field="pending"
+                currentField={sortField}
+                currentDirection={sortDirection}
+                onSort={onSort}
+                className="text-center"
+              >
+                Pending
+              </SortableHeader>
+              <SortableHeader
+                field="dues"
+                currentField={sortField}
+                currentDirection={sortDirection}
+                onSort={onSort}
+                className="text-right"
+              >
+                Total Dues
+              </SortableHeader>
               {showOptionalColumns.securityDeposit && (
                 <TableHead className="text-right">Deposit</TableHead>
               )}

@@ -3,10 +3,19 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Phone, DoorOpen, ChevronRight } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Phone, DoorOpen, ChevronRight, ArrowUpDown } from "lucide-react";
 import { SearchFilter } from "@/components/search-filter";
+import { AddTenantForm } from "@/components/forms/add-tenant-form";
+
+type SortOption = "name-asc" | "name-desc" | "balance-asc" | "balance-desc" | "rooms-asc" | "rooms-desc";
 
 // Placeholder data
 const tenants = [
@@ -21,36 +30,83 @@ const tenants = [
 
 export default function TenantsPage() {
   const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState<SortOption>("name-asc");
 
-  const filteredTenants = useMemo(() => {
-    if (!search.trim()) return tenants;
-    const searchLower = search.toLowerCase();
-    return tenants.filter(
-      (tenant) =>
-        tenant.name.toLowerCase().includes(searchLower) ||
-        tenant.phone.includes(search) ||
-        tenant.rooms.some((room) => room.toLowerCase().includes(searchLower))
-    );
-  }, [search]);
+  const filteredAndSortedTenants = useMemo(() => {
+    let result = tenants;
+
+    // Filter
+    if (search.trim()) {
+      const searchLower = search.toLowerCase();
+      result = result.filter(
+        (tenant) =>
+          tenant.name.toLowerCase().includes(searchLower) ||
+          tenant.phone.includes(search) ||
+          tenant.rooms.some((room) => room.toLowerCase().includes(searchLower))
+      );
+    }
+
+    // Sort
+    result = [...result].sort((a, b) => {
+      switch (sortBy) {
+        case "name-asc":
+          return a.name.localeCompare(b.name);
+        case "name-desc":
+          return b.name.localeCompare(a.name);
+        case "balance-asc":
+          return a.balance - b.balance;
+        case "balance-desc":
+          return b.balance - a.balance;
+        case "rooms-asc":
+          return a.rooms.length - b.rooms.length;
+        case "rooms-desc":
+          return b.rooms.length - a.rooms.length;
+        default:
+          return 0;
+      }
+    });
+
+    return result;
+  }, [search, sortBy]);
+
+  const handleAddTenant = (data: unknown) => {
+    console.log("New tenant:", data);
+    // In real app, save to DB and refresh list
+  };
 
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Tenants</h1>
-        <Button size="sm">
-          <Plus className="h-4 w-4 mr-1" />
-          Add Tenant
-        </Button>
+        <AddTenantForm onSubmit={handleAddTenant} />
       </div>
 
-      <SearchFilter
-        value={search}
-        onChange={setSearch}
-        placeholder="Search by name, phone, or room..."
-      />
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex-1">
+          <SearchFilter
+            value={search}
+            onChange={setSearch}
+            placeholder="Search by name, phone, or room..."
+          />
+        </div>
+        <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+          <SelectTrigger className="w-full sm:w-[180px]">
+            <ArrowUpDown className="h-4 w-4 mr-2" />
+            <SelectValue placeholder="Sort by" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="name-asc">Name (A-Z)</SelectItem>
+            <SelectItem value="name-desc">Name (Z-A)</SelectItem>
+            <SelectItem value="balance-desc">Balance (High-Low)</SelectItem>
+            <SelectItem value="balance-asc">Balance (Low-High)</SelectItem>
+            <SelectItem value="rooms-desc">Rooms (Most)</SelectItem>
+            <SelectItem value="rooms-asc">Rooms (Least)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
       <div className="space-y-3">
-        {filteredTenants.map((tenant) => (
+        {filteredAndSortedTenants.map((tenant) => (
           <Link key={tenant.id} href={`/tenants/${tenant.id}`}>
             <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
               <CardContent className="p-4">
@@ -82,7 +138,7 @@ export default function TenantsPage() {
             </Card>
           </Link>
         ))}
-        {filteredTenants.length === 0 && (
+        {filteredAndSortedTenants.length === 0 && (
           <div className="text-center py-8 text-muted-foreground">
             No tenants found matching your search.
           </div>
