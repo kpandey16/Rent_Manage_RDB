@@ -13,7 +13,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus } from "lucide-react";
+import { Plus, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 interface AddRoomFormProps {
   trigger?: React.ReactNode;
@@ -29,6 +30,7 @@ export interface RoomFormData {
 
 export function AddRoomForm({ trigger, onSubmit }: AddRoomFormProps) {
   const [open, setOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState<RoomFormData>({
     code: "",
     name: "",
@@ -36,17 +38,43 @@ export function AddRoomForm({ trigger, onSubmit }: AddRoomFormProps) {
     description: "",
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit?.(formData);
-    setOpen(false);
-    // Reset form
-    setFormData({
-      code: "",
-      name: "",
-      rent: 0,
-      description: "",
-    });
+    try {
+      setSubmitting(true);
+      const response = await fetch("/api/rooms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: formData.code,
+          name: formData.name,
+          monthlyRent: formData.rent,
+          description: formData.description || null,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to add room");
+      }
+
+      const data = await response.json();
+      toast.success(data.message || "Room added successfully");
+      onSubmit?.(formData);
+      setOpen(false);
+      // Reset form
+      setFormData({
+        code: "",
+        name: "",
+        rent: 0,
+        description: "",
+      });
+    } catch (error) {
+      console.error("Error adding room:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to add room");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -77,6 +105,7 @@ export function AddRoomForm({ trigger, onSubmit }: AddRoomFormProps) {
                 value={formData.code}
                 onChange={(e) => setFormData((prev) => ({ ...prev, code: e.target.value.toUpperCase() }))}
                 placeholder="R1, R2, A101, etc."
+                disabled={submitting}
                 required
               />
               <p className="text-xs text-muted-foreground">
@@ -93,6 +122,7 @@ export function AddRoomForm({ trigger, onSubmit }: AddRoomFormProps) {
                 value={formData.name}
                 onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
                 placeholder="Ground Floor - Front"
+                disabled={submitting}
                 required
               />
             </div>
@@ -111,6 +141,7 @@ export function AddRoomForm({ trigger, onSubmit }: AddRoomFormProps) {
                   onChange={(e) => setFormData((prev) => ({ ...prev, rent: Number(e.target.value) }))}
                   className="pl-7"
                   placeholder="5000"
+                  disabled={submitting}
                   required
                 />
               </div>
@@ -125,15 +156,17 @@ export function AddRoomForm({ trigger, onSubmit }: AddRoomFormProps) {
                 value={formData.description}
                 onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
                 placeholder="Size, amenities, etc."
+                disabled={submitting}
               />
             </div>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={submitting}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!formData.code || !formData.name || !formData.rent}>
-              Add Room
+            <Button type="submit" disabled={!formData.code || !formData.name || !formData.rent || submitting}>
+              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {submitting ? "Adding..." : "Add Room"}
             </Button>
           </DialogFooter>
         </form>
