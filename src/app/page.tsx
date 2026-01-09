@@ -1,19 +1,92 @@
+"use client";
+
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { DoorOpen, Users, AlertTriangle, IndianRupee, Wrench } from "lucide-react";
+import { DoorOpen, Users, AlertTriangle, IndianRupee } from "lucide-react";
+import { SearchFilter } from "@/components/search-filter";
+import { TenantOverviewTable, TenantOverview, SortField, SortDirection } from "@/components/tenant-overview-table";
 
 // Placeholder data - will be fetched from DB
 const stats = {
   occupiedRooms: 8,
   vacantRooms: 2,
-  activeTenants: 10,
-  defaultersCount: 2,
-  totalDues: 15000,
+  activeTenants: 7,
+  defaultersCount: 4,
+  totalDues: 60000,
   thisMonthCollection: 45000,
-  pendingMaintenance: 3,
 };
 
+const tenantsOverview: TenantOverview[] = [
+  { id: "1", name: "Amit Sharma", rooms: ["R1"], monthlyRent: 5000, lastPaidMonth: "Jan-26", pendingMonths: 0, totalDues: 0, securityDeposit: 10000, creditBalance: 500 },
+  { id: "2", name: "Priya Singh", rooms: ["R2", "R4"], monthlyRent: 9000, lastPaidMonth: "Jan-26", pendingMonths: 0, totalDues: 0, securityDeposit: 18000, creditBalance: 0 },
+  { id: "3", name: "Ramesh Kumar", rooms: ["R3"], monthlyRent: 5500, lastPaidMonth: "Nov-25", pendingMonths: 2, totalDues: 11000, securityDeposit: 11000, creditBalance: 0 },
+  { id: "4", name: "Sunita Devi", rooms: ["R5"], monthlyRent: 5000, lastPaidMonth: "Jan-26", pendingMonths: 0, totalDues: 0, securityDeposit: 10000, creditBalance: 200 },
+  { id: "5", name: "Suresh Patel", rooms: ["R7"], monthlyRent: 5000, lastPaidMonth: "Dec-25", pendingMonths: 1, totalDues: 5000, securityDeposit: 10000, creditBalance: 0 },
+  { id: "6", name: "Meera Joshi", rooms: ["R8"], monthlyRent: 4000, lastPaidMonth: "Oct-25", pendingMonths: 3, totalDues: 12000, securityDeposit: 8000, creditBalance: 0 },
+  { id: "7", name: "Vikram Rao", rooms: ["R9", "R10"], monthlyRent: 8000, lastPaidMonth: "Sep-25", pendingMonths: 4, totalDues: 32000, securityDeposit: 16000, creditBalance: 0 },
+];
+
 export default function Home() {
+  const [search, setSearch] = useState("");
+  const [showOptionalColumns, setShowOptionalColumns] = useState({
+    securityDeposit: false,
+    creditBalance: false,
+  });
+  const [sortField, setSortField] = useState<SortField>("name");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+
+  const filteredAndSortedTenants = useMemo(() => {
+    let result = tenantsOverview;
+
+    // Filter
+    if (search.trim()) {
+      const searchLower = search.toLowerCase();
+      result = result.filter(
+        (tenant) =>
+          tenant.name.toLowerCase().includes(searchLower) ||
+          tenant.rooms.some((room) => room.toLowerCase().includes(searchLower))
+      );
+    }
+
+    // Sort
+    result = [...result].sort((a, b) => {
+      let comparison = 0;
+      switch (sortField) {
+        case "name":
+          comparison = a.name.localeCompare(b.name);
+          break;
+        case "rent":
+          comparison = a.monthlyRent - b.monthlyRent;
+          break;
+        case "pending":
+          comparison = a.pendingMonths - b.pendingMonths;
+          break;
+        case "dues":
+          comparison = a.totalDues - b.totalDues;
+          break;
+      }
+      return sortDirection === "asc" ? comparison : -comparison;
+    });
+
+    return result;
+  }, [search, sortField, sortDirection]);
+
+  const handleToggleColumn = (column: "securityDeposit" | "creditBalance") => {
+    setShowOptionalColumns((prev) => ({
+      ...prev,
+      [column]: !prev[column],
+    }));
+  };
+
+  const handleSort = (field: SortField) => {
+    if (field === sortField) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  };
+
   return (
     <div className="p-4 space-y-4">
       {/* Stats Grid */}
@@ -65,62 +138,35 @@ export default function Home() {
           <CardContent>
             <div className="text-2xl font-bold text-destructive">{stats.defaultersCount}</div>
             <p className="text-xs text-muted-foreground">
-              {stats.totalDues.toLocaleString("en-IN")} dues
+              ₹{stats.totalDues.toLocaleString("en-IN")} dues
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Defaulters Section */}
+      {/* Tenant Overview Table */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-destructive" />
-            Defaulters
-          </CardTitle>
+        <CardHeader className="pb-3">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <CardTitle className="text-base">Tenant Overview</CardTitle>
+            <div className="w-full md:w-64">
+              <SearchFilter
+                value={search}
+                onChange={setSearch}
+                placeholder="Search tenant or room..."
+              />
+            </div>
+          </div>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center justify-between p-3 rounded-lg bg-destructive/10">
-            <div>
-              <p className="font-medium">Ramesh Kumar</p>
-              <p className="text-sm text-muted-foreground">R3 - 2 months</p>
-            </div>
-            <Badge variant="destructive">10,000</Badge>
-          </div>
-          <div className="flex items-center justify-between p-3 rounded-lg bg-destructive/10">
-            <div>
-              <p className="font-medium">Suresh Patel</p>
-              <p className="text-sm text-muted-foreground">R7 - 1 month</p>
-            </div>
-            <Badge variant="destructive">5,000</Badge>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Pending Maintenance */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Wrench className="h-4 w-4 text-orange-500" />
-            Pending Maintenance
-            <Badge variant="secondary" className="ml-auto">{stats.pendingMaintenance}</Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center justify-between p-3 rounded-lg bg-muted">
-            <div>
-              <p className="font-medium">Water leakage</p>
-              <p className="text-sm text-muted-foreground">R2 - Jan 3</p>
-            </div>
-            <Badge variant="outline">Open</Badge>
-          </div>
-          <div className="flex items-center justify-between p-3 rounded-lg bg-muted">
-            <div>
-              <p className="font-medium">Electrical issue</p>
-              <p className="text-sm text-muted-foreground">R5 - Jan 5</p>
-            </div>
-            <Badge variant="outline">In Progress</Badge>
-          </div>
+        <CardContent>
+          <TenantOverviewTable
+            tenants={filteredAndSortedTenants}
+            showOptionalColumns={showOptionalColumns}
+            onToggleColumn={handleToggleColumn}
+            sortField={sortField}
+            sortDirection={sortDirection}
+            onSort={handleSort}
+          />
         </CardContent>
       </Card>
     </div>

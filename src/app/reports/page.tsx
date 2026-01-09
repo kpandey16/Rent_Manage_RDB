@@ -1,6 +1,31 @@
+"use client";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, TrendingDown, Users, IndianRupee, Percent } from "lucide-react";
+import { Percent } from "lucide-react";
+import { DefaultersChart } from "@/components/charts/defaulters-chart";
+import { CollectionChart } from "@/components/charts/collection-chart";
+
+// Chart data
+const defaultersData = {
+  twoMonths: 2,
+  threeMonths: 1,
+  fourPlusMonths: 1,
+};
+
+const weeklyCollectionData = [
+  { label: "W1", amount: 12000 },
+  { label: "W2", amount: 18000 },
+  { label: "W3", amount: 8000 },
+  { label: "W4", amount: 7000 },
+];
+
+const monthlyCollectionData = [
+  { label: "Oct", amount: 48000 },
+  { label: "Nov", amount: 45000 },
+  { label: "Dec", amount: 52000 },
+  { label: "Jan", amount: 45000 },
+];
 
 // Placeholder data
 const monthlyData = {
@@ -25,6 +50,12 @@ export default function ReportsPage() {
   return (
     <div className="p-4 space-y-4">
       <h1 className="text-xl font-semibold">Reports</h1>
+
+      {/* Charts */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <DefaultersChart data={defaultersData} />
+        <CollectionChart weeklyData={weeklyCollectionData} monthlyData={monthlyCollectionData} />
+      </div>
 
       {/* Current Month Summary */}
       <Card>
