@@ -17,29 +17,34 @@ import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus } from "lucide-react";
+import { Plus, Info } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 // Placeholder data - will come from DB
 const tenants = [
-  { id: "1", name: "Amit Sharma", monthlyRent: 5000 },
-  { id: "2", name: "Priya Singh", monthlyRent: 9000 },
-  { id: "3", name: "Ramesh Kumar", monthlyRent: 5500 },
-  { id: "4", name: "Sunita Devi", monthlyRent: 5000 },
-  { id: "5", name: "Suresh Patel", monthlyRent: 5000 },
-  { id: "6", name: "Meera Joshi", monthlyRent: 4000 },
-  { id: "7", name: "Vikram Rao", monthlyRent: 8000 },
+  { id: "1", name: "Amit Sharma", monthlyRent: 5000, securityDeposit: 10000 },
+  { id: "2", name: "Priya Singh", monthlyRent: 9000, securityDeposit: 18000 },
+  { id: "3", name: "Ramesh Kumar", monthlyRent: 5500, securityDeposit: 11000 },
+  { id: "4", name: "Sunita Devi", monthlyRent: 5000, securityDeposit: 10000 },
+  { id: "5", name: "Suresh Patel", monthlyRent: 5000, securityDeposit: 10000 },
+  { id: "6", name: "Meera Joshi", monthlyRent: 4000, securityDeposit: 8000 },
+  { id: "7", name: "Vikram Rao", monthlyRent: 8000, securityDeposit: 16000 },
 ];
 
 const paymentTypes = [
-  { value: "payment", label: "Payment" },
-  { value: "deposit", label: "Security Deposit Used" },
-  { value: "credit", label: "Credit Applied" },
-  { value: "discount", label: "Discount" },
-  { value: "maintenance", label: "Maintenance Adjustment" },
+  { value: "payment", label: "Payment", category: "income" },
+  { value: "security_deposit_add", label: "Security Deposit - Add/Increase", category: "deposit" },
+  { value: "security_deposit_withdraw", label: "Security Deposit - Withdraw/Decrease", category: "deposit" },
+  { value: "deposit_used", label: "Security Deposit Used (for dues)", category: "adjustment" },
+  { value: "credit", label: "Credit Applied", category: "adjustment" },
+  { value: "discount", label: "Discount", category: "adjustment" },
+  { value: "maintenance", label: "Maintenance Adjustment", category: "adjustment" },
 ];
 
 const paymentMethods = [
@@ -170,7 +175,7 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
 
             {/* Type */}
             <div className="grid gap-2">
-              <Label htmlFor="type">Payment Type *</Label>
+              <Label htmlFor="type">Transaction Type *</Label>
               <Select
                 value={formData.type}
                 onValueChange={(value) => setFormData((prev) => ({ ...prev, type: value }))}
@@ -179,14 +184,35 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {paymentTypes.map((type) => (
-                    <SelectItem key={type.value} value={type.value}>
-                      {type.label}
-                    </SelectItem>
-                  ))}
+                  <SelectGroup>
+                    <SelectLabel>Payment</SelectLabel>
+                    <SelectItem value="payment">Payment</SelectItem>
+                  </SelectGroup>
+                  <SelectGroup>
+                    <SelectLabel>Security Deposit</SelectLabel>
+                    <SelectItem value="security_deposit_add">Add / Increase Deposit</SelectItem>
+                    <SelectItem value="security_deposit_withdraw">Withdraw / Decrease Deposit</SelectItem>
+                    <SelectItem value="deposit_used">Use Deposit for Dues</SelectItem>
+                  </SelectGroup>
+                  <SelectGroup>
+                    <SelectLabel>Adjustments</SelectLabel>
+                    <SelectItem value="credit">Credit Applied</SelectItem>
+                    <SelectItem value="discount">Discount</SelectItem>
+                    <SelectItem value="maintenance">Maintenance Adjustment</SelectItem>
+                  </SelectGroup>
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Security Deposit Info */}
+            {selectedTenant && (formData.type === "security_deposit_add" || formData.type === "security_deposit_withdraw" || formData.type === "deposit_used") && (
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertDescription>
+                  Current security deposit: <span className="font-semibold">₹{selectedTenant.securityDeposit.toLocaleString("en-IN")}</span>
+                </AlertDescription>
+              </Alert>
+            )}
 
             {/* Method */}
             <div className="grid gap-2">

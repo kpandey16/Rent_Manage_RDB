@@ -14,6 +14,7 @@ import {
 import { Phone, DoorOpen, ChevronRight, ArrowUpDown } from "lucide-react";
 import { SearchFilter } from "@/components/search-filter";
 import { AddTenantForm } from "@/components/forms/add-tenant-form";
+import { VacateRoomForm } from "@/components/forms/vacate-room-form";
 
 type SortOption = "name-asc" | "name-desc" | "balance-asc" | "balance-desc" | "rooms-asc" | "rooms-desc";
 
@@ -74,11 +75,19 @@ export default function TenantsPage() {
     // In real app, save to DB and refresh list
   };
 
+  const handleVacateRoom = (data: unknown) => {
+    console.log("Vacate room:", data);
+    // In real app, process vacate and refresh list
+  };
+
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Tenants</h1>
-        <AddTenantForm onSubmit={handleAddTenant} />
+        <div className="flex items-center gap-2">
+          <VacateRoomForm onSubmit={handleVacateRoom} />
+          <AddTenantForm onSubmit={handleAddTenant} />
+        </div>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
