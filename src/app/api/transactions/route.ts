@@ -176,7 +176,7 @@ async function handlePayment(
     date.setMonth(date.getMonth() + 1);
   }
 
-  // Apply payment to unpaid periods
+  // Apply payment to unpaid periods - ONLY IF CAN PAY FULL MONTH
   for (const period of periods) {
     if (remainingAmount >= monthlyRent) {
       // Pay full month
@@ -188,16 +188,8 @@ async function handlePayment(
       });
       remainingAmount -= monthlyRent;
       appliedPeriods.push(period);
-    } else if (remainingAmount > 0) {
-      // Partial payment - record as much as possible
-      const rentPaymentId = generateId();
-      await db.execute({
-        sql: `INSERT INTO rent_payments (id, tenant_id, for_period, rent_amount, ledger_id, paid_at, created_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        args: [rentPaymentId, tenantId, period, remainingAmount, ledgerId, transactionDate, now],
-      });
-      appliedPeriods.push(`${period} (partial: ₹${remainingAmount})`);
-      remainingAmount = 0;
+    } else {
+      // Not enough to pay full month - stop here, keep as credit
       break;
     }
   }
@@ -206,25 +198,19 @@ async function handlePayment(
   let message = "Payment recorded successfully";
 
   // Show how the payment was used
-  if (existingCredit > 0) {
-    // Had positive credit balance
-    message += `. Used ₹${existingCredit.toLocaleString("en-IN")} existing credit + ₹${amount.toLocaleString("en-IN")} new payment`;
-  } else if (existingCredit < 0) {
-    // Had negative balance (dues/opening balance)
-    const duesAmount = Math.abs(existingCredit);
-    const availableForRent = amount - duesAmount;
-
-    if (amount > duesAmount) {
-      message += `. Cleared ₹${duesAmount.toLocaleString("en-IN")} opening dues, applied ₹${availableForRent.toLocaleString("en-IN")} to rent`;
-    } else {
-      message += `. Partially cleared opening dues (₹${amount.toLocaleString("en-IN")} of ₹${duesAmount.toLocaleString("en-IN")})`;
-    }
-  }
-
   if (appliedPeriods.length > 0) {
+    // Payment was applied to rent
+    if (existingCredit > 0) {
+      message += `. Used ₹${existingCredit.toLocaleString("en-IN")} existing credit + ₹${amount.toLocaleString("en-IN")} new payment`;
+    } else if (existingCredit < 0) {
+      // Had negative balance (dues/opening balance)
+      const duesAmount = Math.abs(existingCredit);
+      message += `. Cleared ₹${duesAmount.toLocaleString("en-IN")} opening dues`;
+    }
+
     // Format periods as range
-    const firstPeriod = appliedPeriods[0].replace(/\s*\(partial:.*?\)/, ''); // Remove partial marker if present
-    const lastPeriod = appliedPeriods[appliedPeriods.length - 1].replace(/\s*\(partial:.*?\)/, '');
+    const firstPeriod = appliedPeriods[0];
+    const lastPeriod = appliedPeriods[appliedPeriods.length - 1];
 
     if (appliedPeriods.length === 1) {
       message += `. Paid: ${formatPeriod(firstPeriod)}`;
@@ -232,17 +218,23 @@ async function handlePayment(
       message += `. Paid: ${formatPeriod(firstPeriod)} to ${formatPeriod(lastPeriod)}`;
     }
 
-    // Show if last period is partial
-    const lastEntry = appliedPeriods[appliedPeriods.length - 1];
-    if (lastEntry.includes('partial:')) {
-      const partialMatch = lastEntry.match(/partial:\s*₹([\d,]+)/);
-      if (partialMatch) {
-        message += ` (last month partial: ₹${partialMatch[1]})`;
-      }
+    if (remainingAmount > 0) {
+      message += `. Remaining credit: ₹${remainingAmount.toLocaleString("en-IN")}`;
     }
-  }
-  if (remainingAmount > 0) {
-    message += `. Remaining credit: ₹${remainingAmount.toLocaleString("en-IN")}`;
+  } else {
+    // Payment was NOT applied to rent - went to credit
+    if (existingCredit < 0) {
+      // Had negative balance (dues/opening balance)
+      const duesAmount = Math.abs(existingCredit);
+      if (amount >= duesAmount) {
+        message += `. Cleared ₹${duesAmount.toLocaleString("en-IN")} opening dues. Added to credit: ₹${remainingAmount.toLocaleString("en-IN")}`;
+      } else {
+        message += `. Partially cleared opening dues (₹${amount.toLocaleString("en-IN")} of ₹${duesAmount.toLocaleString("en-IN")})`;
+      }
+    } else {
+      // Payment went to credit (insufficient for full month rent)
+      message += `. Added to credit balance: ₹${amount.toLocaleString("en-IN")}. Total credit: ₹${remainingAmount.toLocaleString("en-IN")}`;
+    }
   }
 
   return NextResponse.json(
@@ -467,7 +459,7 @@ async function handleCreditApplied(
     date.setMonth(date.getMonth() + 1);
   }
 
-  // Apply credit to unpaid periods
+  // Apply credit to unpaid periods - ONLY IF CAN PAY FULL MONTH
   for (const period of periods) {
     if (remainingAmount >= monthlyRent) {
       // Pay full month
@@ -479,16 +471,8 @@ async function handleCreditApplied(
       });
       remainingAmount -= monthlyRent;
       appliedPeriods.push(period);
-    } else if (remainingAmount > 0) {
-      // Partial payment - record as much as possible
-      const rentPaymentId = generateId();
-      await db.execute({
-        sql: `INSERT INTO rent_payments (id, tenant_id, for_period, rent_amount, ledger_id, paid_at, created_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        args: [rentPaymentId, tenantId, period, remainingAmount, ledgerId, transactionDate, now],
-      });
-      appliedPeriods.push(`${period} (partial: ₹${remainingAmount})`);
-      remainingAmount = 0;
+    } else {
+      // Not enough to pay full month - stop here
       break;
     }
   }
@@ -497,23 +481,16 @@ async function handleCreditApplied(
   let message = "Credit applied successfully";
   if (appliedPeriods.length > 0) {
     // Format periods as range
-    const firstPeriod = appliedPeriods[0].replace(/\s*\(partial:.*?\)/, ''); // Remove partial marker if present
-    const lastPeriod = appliedPeriods[appliedPeriods.length - 1].replace(/\s*\(partial:.*?\)/, '');
+    const firstPeriod = appliedPeriods[0];
+    const lastPeriod = appliedPeriods[appliedPeriods.length - 1];
 
     if (appliedPeriods.length === 1) {
       message += `. Applied to: ${formatPeriod(firstPeriod)}`;
     } else {
       message += `. Applied to: ${formatPeriod(firstPeriod)} to ${formatPeriod(lastPeriod)}`;
     }
-
-    // Show if last period is partial
-    const lastEntry = appliedPeriods[appliedPeriods.length - 1];
-    if (lastEntry.includes('partial:')) {
-      const partialMatch = lastEntry.match(/partial:\s*₹([\d,]+)/);
-      if (partialMatch) {
-        message += ` (last month partial: ₹${partialMatch[1]})`;
-      }
-    }
+  } else {
+    message += `. Insufficient credit to pay full month rent (₹${amount.toLocaleString("en-IN")} available)`;
   }
 
   return NextResponse.json(
