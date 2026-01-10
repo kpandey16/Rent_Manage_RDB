@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,34 +16,31 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowDownLeft, ArrowUpRight, ChevronRight, IndianRupee, Calendar } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, ChevronRight, IndianRupee, Calendar, Loader2 } from "lucide-react";
 import { RecordPaymentForm } from "@/components/forms/record-payment-form";
 import { RecordWithdrawalForm } from "@/components/forms/record-withdrawal-form";
+import { toast } from "sonner";
 
 type PeriodFilter = "1w" | "1m" | "3m" | "6m" | "1y" | "custom" | "all";
 
-// Placeholder data
-const recentPayments = [
-  { id: "1", tenantId: "1", tenant: "Amit Sharma", amount: 5000, type: "payment", method: "UPI", date: "2026-01-05", periods: ["Jan 2026"] },
-  { id: "2", tenantId: "2", tenant: "Priya Singh", amount: 9000, type: "payment", method: "Cash", date: "2026-01-04", periods: ["Jan 2026"] },
-  { id: "3", tenantId: "4", tenant: "Sunita Devi", amount: 5500, type: "payment", method: "UPI", date: "2026-01-03", periods: ["Jan 2026"] },
-  { id: "4", tenantId: "3", tenant: "Ramesh Kumar", amount: 2000, type: "discount", method: null, date: "2026-01-02", periods: [] },
-  { id: "5", tenantId: "1", tenant: "Amit Sharma", amount: 5000, type: "payment", method: "Cash", date: "2025-12-05", periods: ["Dec 2025"] },
-  { id: "6", tenantId: "2", tenant: "Priya Singh", amount: 9000, type: "payment", method: "UPI", date: "2025-12-03", periods: ["Dec 2025"] },
-  { id: "7", tenantId: "4", tenant: "Sunita Devi", amount: 5000, type: "payment", method: "Cash", date: "2025-11-05", periods: ["Nov 2025"] },
-  { id: "8", tenantId: "5", tenant: "Suresh Patel", amount: 5000, type: "payment", method: "UPI", date: "2025-10-08", periods: ["Oct 2025"] },
-];
+interface Transaction {
+  id: string;
+  tenant_id: string;
+  tenant_name: string;
+  transaction_date: string;
+  type: string;
+  amount: number;
+  payment_method: string | null;
+  description: string | null;
+  created_at: string;
+}
 
-const allWithdrawals = [
-  { id: "1", amount: 20000, date: "2026-01-05", notes: "Monthly collection" },
-  { id: "2", amount: 5000, date: "2025-12-28", notes: "Emergency expense" },
-  { id: "3", amount: 25000, date: "2025-12-10", notes: "December collection" },
-  { id: "4", amount: 15000, date: "2025-11-15", notes: "November partial" },
-  { id: "5", amount: 20000, date: "2025-10-20", notes: "October collection" },
-  { id: "6", amount: 18000, date: "2025-09-25", notes: "September collection" },
-  { id: "7", amount: 22000, date: "2025-08-15", notes: "August collection" },
-  { id: "8", amount: 30000, date: "2025-05-10", notes: "May collection" },
-];
+interface Withdrawal {
+  id: string;
+  amount: number;
+  date: string;
+  notes: string | null;
+}
 
 function getDateThreshold(period: PeriodFilter): Date {
   const now = new Date();
@@ -69,6 +66,30 @@ export default function PaymentsPage() {
   const [withdrawalPeriod, setWithdrawalPeriod] = useState<PeriodFilter>("1m");
   const [customFromDate, setCustomFromDate] = useState<string>("");
   const [customToDate, setCustomToDate] = useState<string>("");
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchTransactions();
+  }, []);
+
+  const fetchTransactions = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch("/api/transactions");
+      if (!response.ok) throw new Error("Failed to fetch transactions");
+      const data = await response.json();
+      setTransactions(data.transactions || []);
+    } catch (error) {
+      console.error("Error fetching transactions:", error);
+      toast.error("Failed to load transactions");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // For now, withdrawals are empty until we implement withdrawal tracking
+  const allWithdrawals: Withdrawal[] = [];
 
   const filteredWithdrawals = useMemo(() => {
     if (withdrawalPeriod === "custom") {
@@ -81,7 +102,7 @@ export default function PaymentsPage() {
     }
     const threshold = getDateThreshold(withdrawalPeriod);
     return allWithdrawals.filter((w) => new Date(w.date) >= threshold);
-  }, [withdrawalPeriod, customFromDate, customToDate]);
+  }, [withdrawalPeriod, customFromDate, customToDate, allWithdrawals]);
 
   const withdrawalTotal = useMemo(() => {
     return filteredWithdrawals.reduce((sum, w) => sum + w.amount, 0);
@@ -110,14 +131,14 @@ export default function PaymentsPage() {
     return labels[withdrawalPeriod];
   };
 
-  const handlePaymentSubmit = (data: unknown) => {
-    console.log("Payment recorded:", data);
-    // In real app, save to DB and refresh list
+  const handlePaymentSubmit = () => {
+    // Refresh transactions after recording payment
+    fetchTransactions();
   };
 
   const handleWithdrawalSubmit = (data: unknown) => {
     console.log("Withdrawal recorded:", data);
-    // In real app, save to DB and refresh list
+    toast.info("Withdrawal tracking coming soon");
   };
 
   return (
@@ -134,41 +155,52 @@ export default function PaymentsPage() {
         </TabsList>
 
         <TabsContent value="payments" className="mt-4 space-y-3">
-          {recentPayments.map((payment) => (
-            <Link key={payment.id} href={`/tenants/${payment.tenantId}`}>
-              <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1 flex-1">
-                      <div className="flex items-center gap-2">
-                        <ArrowDownLeft className="h-4 w-4 text-green-600" />
-                        <span className="font-medium">{payment.tenant}</span>
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(payment.date).toLocaleDateString("en-IN")} {payment.method && `• ${payment.method}`}
-                      </p>
-                      {payment.periods.length > 0 && (
-                        <p className="text-xs text-muted-foreground">
-                          For: {payment.periods.join(", ")}
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : transactions.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No transactions yet. Record your first payment above!
+            </div>
+          ) : (
+            transactions.map((transaction) => (
+              <Link key={transaction.id} href={`/tenants/${transaction.tenant_id}`}>
+                <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1 flex-1">
+                        <div className="flex items-center gap-2">
+                          <ArrowDownLeft className="h-4 w-4 text-green-600" />
+                          <span className="font-medium">{transaction.tenant_name}</span>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(transaction.transaction_date).toLocaleDateString("en-IN")}
+                          {transaction.payment_method && ` • ${transaction.payment_method}`}
                         </p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="text-right">
-                        <span className="text-lg font-semibold text-green-600">
-                          +₹{payment.amount.toLocaleString("en-IN")}
-                        </span>
-                        <Badge variant="outline" className="ml-2 text-xs capitalize">
-                          {payment.type}
-                        </Badge>
+                        {transaction.description && (
+                          <p className="text-xs text-muted-foreground">
+                            {transaction.description}
+                          </p>
+                        )}
                       </div>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      <div className="flex items-center gap-2">
+                        <div className="text-right">
+                          <span className="text-lg font-semibold text-green-600">
+                            +₹{Number(transaction.amount).toLocaleString("en-IN")}
+                          </span>
+                          <Badge variant="outline" className="ml-2 text-xs capitalize">
+                            {transaction.type}
+                          </Badge>
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
+                  </CardContent>
+                </Card>
+              </Link>
+            ))
+          )}
         </TabsContent>
 
         <TabsContent value="withdrawals" className="mt-4 space-y-4">
