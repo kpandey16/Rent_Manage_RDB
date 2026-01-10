@@ -205,14 +205,24 @@ async function handlePayment(
   // Build response message
   let message = "Payment recorded successfully";
 
-  // Show if existing credit was used
+  // Show how the payment was used
   if (existingCredit > 0) {
-    const totalApplied = (existingCredit + amount) - remainingAmount;
+    // Had positive credit balance
     message += `. Used ₹${existingCredit.toLocaleString("en-IN")} existing credit + ₹${amount.toLocaleString("en-IN")} new payment`;
+  } else if (existingCredit < 0) {
+    // Had negative balance (dues/opening balance)
+    const duesAmount = Math.abs(existingCredit);
+    const availableForRent = amount - duesAmount;
+
+    if (amount > duesAmount) {
+      message += `. Cleared ₹${duesAmount.toLocaleString("en-IN")} opening dues, applied ₹${availableForRent.toLocaleString("en-IN")} to rent`;
+    } else {
+      message += `. Partially cleared opening dues (₹${amount.toLocaleString("en-IN")} of ₹${duesAmount.toLocaleString("en-IN")})`;
+    }
   }
 
   if (appliedPeriods.length > 0) {
-    message += `. Applied to: ${appliedPeriods.join(", ")}`;
+    message += `. Paid: ${appliedPeriods.join(", ")}`;
   }
   if (remainingAmount > 0) {
     message += `. Remaining credit: ₹${remainingAmount.toLocaleString("en-IN")}`;
