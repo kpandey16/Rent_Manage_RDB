@@ -27,6 +27,16 @@ interface Room {
   is_active: number;
 }
 
+interface Transaction {
+  id: string;
+  transaction_date: string;
+  type: string;
+  amount: number;
+  payment_method: string | null;
+  description: string | null;
+  appliedTo?: string;
+}
+
 interface Tenant {
   id: string;
   name: string;
@@ -46,32 +56,42 @@ interface Tenant {
 export default function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [tenant, setTenant] = useState<Tenant | null>(null);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchTenantDetails = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`/api/tenants/${id}`);
-        if (!response.ok) {
-          if (response.status === 404) {
+
+        // Fetch tenant details
+        const tenantResponse = await fetch(`/api/tenants/${id}`);
+        if (!tenantResponse.ok) {
+          if (tenantResponse.status === 404) {
             toast.error("Tenant not found");
           } else {
             throw new Error("Failed to fetch tenant details");
           }
           return;
         }
-        const data = await response.json();
-        setTenant(data.tenant);
+        const tenantData = await tenantResponse.json();
+        setTenant(tenantData.tenant);
+
+        // Fetch transactions
+        const transactionsResponse = await fetch(`/api/transactions?tenantId=${id}`);
+        if (transactionsResponse.ok) {
+          const transactionsData = await transactionsResponse.json();
+          setTransactions(transactionsData.transactions || []);
+        }
       } catch (error) {
-        console.error("Error fetching tenant details:", error);
+        console.error("Error fetching data:", error);
         toast.error("Failed to load tenant details");
       } finally {
         setLoading(false);
       }
     };
 
-    fetchTenantDetails();
+    fetchData();
   }, [id]);
 
   const handleRoomAllocated = () => {
@@ -200,6 +220,76 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
                 <Badge>₹{Number(room.monthly_rent).toLocaleString("en-IN")}/mo</Badge>
               </div>
             ))
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Payment History */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <IndianRupee className="h-4 w-4" />
+            Payment History
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {transactions.length === 0 ? (
+            <p className="text-center py-8 text-muted-foreground">No transactions yet</p>
+          ) : (
+            <>
+              {/* Mobile View */}
+              <div className="md:hidden space-y-3">
+                {transactions.map((transaction) => (
+                  <div key={transaction.id} className="p-3 rounded-lg bg-muted/50">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-lg font-semibold text-green-600">
+                        +₹{Number(transaction.amount).toLocaleString("en-IN")}
+                      </span>
+                      <Badge variant="outline" className="capitalize">{transaction.type}</Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {new Date(transaction.transaction_date).toLocaleDateString("en-IN")}
+                      {transaction.payment_method && ` • ${transaction.payment_method}`}
+                    </p>
+                    {transaction.appliedTo && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Applied to: {transaction.appliedTo}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop View */}
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Method</TableHead>
+                      <TableHead>Applied To</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {transactions.map((transaction) => (
+                      <TableRow key={transaction.id}>
+                        <TableCell>{new Date(transaction.transaction_date).toLocaleDateString("en-IN")}</TableCell>
+                        <TableCell className="font-medium text-green-600">+₹{Number(transaction.amount).toLocaleString("en-IN")}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="capitalize">{transaction.type}</Badge>
+                        </TableCell>
+                        <TableCell>{transaction.payment_method || "-"}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {transaction.appliedTo || "-"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
