@@ -134,7 +134,7 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
             )}
           </div>
           <Separator />
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <div>
               <p className="text-sm text-muted-foreground">Monthly Rent</p>
               <p className="text-lg font-semibold">₹{tenant.monthlyRent.toLocaleString("en-IN")}</p>
@@ -144,14 +144,20 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
               <p className="text-lg font-semibold">₹{tenant.securityDeposit.toLocaleString("en-IN")}</p>
             </div>
             <div>
+              <p className="text-sm text-muted-foreground">Last Paid Month</p>
+              <p className="text-lg font-semibold">{tenant.lastPaidMonth || "-"}</p>
+            </div>
+            <div>
               <p className="text-sm text-muted-foreground">Credit Balance</p>
-              <p className="text-lg font-semibold text-green-600">
-                {tenant.creditBalance > 0 ? `+₹${tenant.creditBalance.toLocaleString("en-IN")}` : "-"}
+              <p className={`text-lg font-semibold ${tenant.creditBalance > 0 ? 'text-green-600' : ''}`}>
+                {tenant.creditBalance > 0 ? `+₹${tenant.creditBalance.toLocaleString("en-IN")}` : "₹0"}
               </p>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Last Paid Month</p>
-              <p className="text-lg font-semibold">{tenant.lastPaidMonth || "-"}</p>
+              <p className="text-sm text-muted-foreground">Total Dues</p>
+              <p className={`text-lg font-semibold ${tenant.totalDues > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                {tenant.totalDues > 0 ? `₹${tenant.totalDues.toLocaleString("en-IN")}` : "₹0"}
+              </p>
             </div>
           </div>
         </CardContent>

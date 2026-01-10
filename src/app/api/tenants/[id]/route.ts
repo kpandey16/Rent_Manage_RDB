@@ -85,10 +85,26 @@ export async function GET(
       ? formatPeriod(lastPayment.rows[0].for_period as string)
       : null;
 
-    // Calculate total dues (negative balance means dues)
+    // Calculate total rent owed based on allocation date and current date
+    let totalRentOwed = 0;
+    const today = new Date();
+
+    for (const room of rooms.rows) {
+      const moveInDate = new Date(room.move_in_date);
+      const monthlyRent = Number(room.monthly_rent);
+
+      // Calculate number of months between move-in date and today
+      const yearsDiff = today.getFullYear() - moveInDate.getFullYear();
+      const monthsDiff = today.getMonth() - moveInDate.getMonth();
+      const totalMonths = yearsDiff * 12 + monthsDiff + 1; // +1 to include the current month
+
+      totalRentOwed += totalMonths * monthlyRent;
+    }
+
+    // Calculate total dues
+    // Total dues = Rent owed - Credits (payments made)
     const credit = Number(creditBalance.rows[0].balance);
-    const rentPaid = Number(totalRentPaid.rows[0].total);
-    const totalDues = Math.max(0, rentPaid - credit); // If credit < rentPaid, there are dues
+    const totalDues = Math.max(0, totalRentOwed - credit);
 
     const tenantDetails = {
       ...tenant.rows[0],

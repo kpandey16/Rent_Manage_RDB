@@ -114,9 +114,12 @@ export async function GET(
 
     return NextResponse.json({ room: roomDetails });
   } catch (error) {
-    console.error("Error fetching room details:", error);
+    console.error("[Room Detail API] Error fetching room details:", error);
     return NextResponse.json(
-      { error: "Failed to fetch room details" },
+      {
+        error: "Failed to fetch room details",
+        details: error instanceof Error ? error.message : String(error)
+      },
       { status: 500 }
     );
   }
