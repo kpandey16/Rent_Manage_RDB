@@ -8,6 +8,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    console.log("[Room Detail API] Fetching room with ID:", id);
 
     // Get room basic info
     const room = await db.execute({
@@ -15,7 +16,13 @@ export async function GET(
       args: [id],
     });
 
+    console.log("[Room Detail API] Query result:", room.rows.length, "rows found");
+
     if (room.rows.length === 0) {
+      // Log all room IDs to help with debugging
+      const allRooms = await db.execute({ sql: "SELECT id, code FROM rooms" });
+      console.log("[Room Detail API] Available room IDs:", allRooms.rows.map((r: any) => ({ id: r.id, code: r.code })));
+
       return NextResponse.json(
         { error: "Room not found" },
         { status: 404 }
