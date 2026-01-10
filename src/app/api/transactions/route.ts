@@ -222,7 +222,24 @@ async function handlePayment(
   }
 
   if (appliedPeriods.length > 0) {
-    message += `. Paid: ${appliedPeriods.join(", ")}`;
+    // Format periods as range
+    const firstPeriod = appliedPeriods[0].replace(/\s*\(partial:.*?\)/, ''); // Remove partial marker if present
+    const lastPeriod = appliedPeriods[appliedPeriods.length - 1].replace(/\s*\(partial:.*?\)/, '');
+
+    if (appliedPeriods.length === 1) {
+      message += `. Paid: ${formatPeriod(firstPeriod)}`;
+    } else {
+      message += `. Paid: ${formatPeriod(firstPeriod)} to ${formatPeriod(lastPeriod)}`;
+    }
+
+    // Show if last period is partial
+    const lastEntry = appliedPeriods[appliedPeriods.length - 1];
+    if (lastEntry.includes('partial:')) {
+      const partialMatch = lastEntry.match(/partial:\s*₹([\d,]+)/);
+      if (partialMatch) {
+        message += ` (last month partial: ₹${partialMatch[1]})`;
+      }
+    }
   }
   if (remainingAmount > 0) {
     message += `. Remaining credit: ₹${remainingAmount.toLocaleString("en-IN")}`;
@@ -479,7 +496,24 @@ async function handleCreditApplied(
   // Build response message
   let message = "Credit applied successfully";
   if (appliedPeriods.length > 0) {
-    message += `. Applied to: ${appliedPeriods.join(", ")}`;
+    // Format periods as range
+    const firstPeriod = appliedPeriods[0].replace(/\s*\(partial:.*?\)/, ''); // Remove partial marker if present
+    const lastPeriod = appliedPeriods[appliedPeriods.length - 1].replace(/\s*\(partial:.*?\)/, '');
+
+    if (appliedPeriods.length === 1) {
+      message += `. Applied to: ${formatPeriod(firstPeriod)}`;
+    } else {
+      message += `. Applied to: ${formatPeriod(firstPeriod)} to ${formatPeriod(lastPeriod)}`;
+    }
+
+    // Show if last period is partial
+    const lastEntry = appliedPeriods[appliedPeriods.length - 1];
+    if (lastEntry.includes('partial:')) {
+      const partialMatch = lastEntry.match(/partial:\s*₹([\d,]+)/);
+      if (partialMatch) {
+        message += ` (last month partial: ₹${partialMatch[1]})`;
+      }
+    }
   }
 
   return NextResponse.json(
