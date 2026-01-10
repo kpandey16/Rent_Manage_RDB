@@ -27,7 +27,7 @@ interface CurrentTenant {
 interface RentHistory {
   effective_from: string;
   new_rent: number;
-  updated_by: string | null;
+  created_by: string | null;
 }
 
 interface PastTenant {
@@ -197,7 +197,7 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                     <TableRow>
                       <TableHead>Effective From</TableHead>
                       <TableHead className="text-right">Rent</TableHead>
-                      <TableHead>Updated By</TableHead>
+                      <TableHead>Created By</TableHead>
                       <TableHead></TableHead>
                     </TableRow>
                   </TableHeader>
@@ -206,7 +206,7 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                       <TableRow key={idx}>
                         <TableCell>{new Date(history.effective_from).toLocaleDateString("en-IN")}</TableCell>
                         <TableCell className="text-right font-medium">₹{Number(history.new_rent).toLocaleString("en-IN")}</TableCell>
-                        <TableCell className="text-muted-foreground">{history.updated_by || "-"}</TableCell>
+                        <TableCell className="text-muted-foreground">{history.created_by || "-"}</TableCell>
                         <TableCell className="text-right">
                           {idx === 0 && <Badge variant="secondary">Current</Badge>}
                         </TableCell>

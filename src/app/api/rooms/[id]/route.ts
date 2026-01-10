@@ -56,7 +56,7 @@ export async function GET(
       sql: `SELECT
               effective_from,
               new_rent,
-              updated_by
+              created_by
             FROM rent_updates
             WHERE room_id = ?
             ORDER BY effective_from DESC`,
