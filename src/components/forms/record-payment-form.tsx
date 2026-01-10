@@ -204,7 +204,7 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
                   ) : (
                     tenants.map((tenant) => (
                       <SelectItem key={tenant.id} value={tenant.id}>
-                        {tenant.name} (₹{(tenant.monthlyRent || 0).toLocaleString("en-IN")}/mo)
+                        {tenant.name}
                       </SelectItem>
                     ))
                   )}

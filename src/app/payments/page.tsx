@@ -33,6 +33,7 @@ interface Transaction {
   payment_method: string | null;
   description: string | null;
   created_at: string;
+  appliedTo?: string;
 }
 
 interface Withdrawal {
@@ -178,7 +179,12 @@ export default function PaymentsPage() {
                           {new Date(transaction.transaction_date).toLocaleDateString("en-IN")}
                           {transaction.payment_method && ` • ${transaction.payment_method}`}
                         </p>
-                        {transaction.description && (
+                        {transaction.appliedTo && (
+                          <p className="text-xs text-muted-foreground">
+                            Applied to: {transaction.appliedTo}
+                          </p>
+                        )}
+                        {transaction.description && transaction.description !== "Payment received" && (
                           <p className="text-xs text-muted-foreground">
                             {transaction.description}
                           </p>

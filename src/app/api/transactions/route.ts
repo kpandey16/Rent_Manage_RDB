@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Handle regular payment
+// Handle regular payment - Apply to rent automatically
 async function handlePayment(
   tenantId: string,
   amount: number,
@@ -86,6 +86,8 @@ async function handlePayment(
   now: string
 ) {
   const ledgerId = generateId();
+  let remainingAmount = amount;
+  const appliedPeriods: string[] = [];
 
   // Create ledger entry
   await db.execute({
@@ -94,10 +96,111 @@ async function handlePayment(
     args: [ledgerId, tenantId, transactionDate, amount, method, notes || "Payment received", now],
   });
 
+  // Get tenant's rooms and monthly rent
+  const roomsResult = await db.execute({
+    sql: `SELECT r.monthly_rent, tr.move_in_date
+          FROM tenant_rooms tr
+          JOIN rooms r ON tr.room_id = r.id
+          WHERE tr.tenant_id = ? AND tr.is_active = 1`,
+    args: [tenantId],
+  });
+
+  if (roomsResult.rows.length === 0) {
+    // No active rooms - payment goes to credit
+    return NextResponse.json(
+      {
+        message: "Payment recorded as credit (no active rooms allocated)",
+        transactionId: ledgerId,
+        appliedTo: "credit",
+        creditAmount: amount,
+      },
+      { status: 201 }
+    );
+  }
+
+  // Calculate total monthly rent
+  const monthlyRent = roomsResult.rows.reduce((sum, room) => sum + Number(room.monthly_rent), 0);
+
+  // Find the earliest move-in date
+  const earliestMoveIn = roomsResult.rows.reduce((earliest, room) => {
+    const moveInDate = new Date(room.move_in_date as string);
+    return !earliest || moveInDate < earliest ? moveInDate : earliest;
+  }, null as Date | null);
+
+  if (!earliestMoveIn) {
+    return NextResponse.json(
+      {
+        message: "Payment recorded as credit",
+        transactionId: ledgerId,
+        appliedTo: "credit",
+        creditAmount: amount,
+      },
+      { status: 201 }
+    );
+  }
+
+  // Get already paid periods
+  const paidPeriodsResult = await db.execute({
+    sql: `SELECT for_period FROM rent_payments WHERE tenant_id = ? ORDER BY for_period`,
+    args: [tenantId],
+  });
+
+  const paidPeriods = new Set(paidPeriodsResult.rows.map(row => row.for_period as string));
+
+  // Generate list of periods from move-in to current month
+  const currentDate = new Date();
+  const periods: string[] = [];
+  let date = new Date(earliestMoveIn.getFullYear(), earliestMoveIn.getMonth(), 1);
+
+  while (date <= currentDate) {
+    const period = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    if (!paidPeriods.has(period)) {
+      periods.push(period);
+    }
+    date.setMonth(date.getMonth() + 1);
+  }
+
+  // Apply payment to unpaid periods
+  for (const period of periods) {
+    if (remainingAmount >= monthlyRent) {
+      // Pay full month
+      const rentPaymentId = generateId();
+      await db.execute({
+        sql: `INSERT INTO rent_payments (id, tenant_id, for_period, rent_amount, ledger_id, paid_at, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        args: [rentPaymentId, tenantId, period, monthlyRent, ledgerId, transactionDate, now],
+      });
+      remainingAmount -= monthlyRent;
+      appliedPeriods.push(period);
+    } else if (remainingAmount > 0) {
+      // Partial payment - record as much as possible
+      const rentPaymentId = generateId();
+      await db.execute({
+        sql: `INSERT INTO rent_payments (id, tenant_id, for_period, rent_amount, ledger_id, paid_at, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        args: [rentPaymentId, tenantId, period, remainingAmount, ledgerId, transactionDate, now],
+      });
+      appliedPeriods.push(`${period} (partial: ₹${remainingAmount})`);
+      remainingAmount = 0;
+      break;
+    }
+  }
+
+  // Build response message
+  let message = "Payment recorded successfully";
+  if (appliedPeriods.length > 0) {
+    message += `. Applied to: ${appliedPeriods.join(", ")}`;
+  }
+  if (remainingAmount > 0) {
+    message += `. Credit balance: ₹${remainingAmount}`;
+  }
+
   return NextResponse.json(
     {
-      message: "Payment recorded successfully",
+      message,
       transactionId: ledgerId,
+      appliedPeriods,
+      creditAmount: remainingAmount,
     },
     { status: 201 }
   );
@@ -307,7 +410,7 @@ async function handleMaintenance(
   );
 }
 
-// GET /api/transactions - Get all transactions
+// GET /api/transactions - Get all transactions with details
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -338,8 +441,42 @@ export async function GET(request: NextRequest) {
 
     const result = await db.execute({ sql, args });
 
+    // For each transaction, fetch applied rent periods
+    const transactionsWithDetails = await Promise.all(
+      result.rows.map(async (transaction: any) => {
+        if (transaction.type === 'payment') {
+          // Get rent periods this payment was applied to
+          const rentPayments = await db.execute({
+            sql: `SELECT for_period, rent_amount
+                  FROM rent_payments
+                  WHERE ledger_id = ?
+                  ORDER BY for_period`,
+            args: [transaction.id],
+          });
+
+          const appliedPeriods = rentPayments.rows.map((rp: any) => ({
+            period: rp.for_period,
+            amount: Number(rp.rent_amount),
+          }));
+
+          return {
+            ...transaction,
+            appliedPeriods,
+            appliedTo: appliedPeriods.length > 0
+              ? appliedPeriods.map(p => `${formatPeriod(p.period as string)} (₹${p.amount})`).join(', ')
+              : 'Credit Balance',
+          };
+        }
+        return {
+          ...transaction,
+          appliedPeriods: [],
+          appliedTo: transaction.type === 'deposit' ? 'Security Deposit' : 'Other',
+        };
+      })
+    );
+
     return NextResponse.json({
-      transactions: result.rows,
+      transactions: transactionsWithDetails,
     });
   } catch (error) {
     console.error("Error fetching transactions:", error);
@@ -348,4 +485,12 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+// Helper function to format YYYY-MM to MMM-YY
+function formatPeriod(period: string): string {
+  const [year, month] = period.split("-");
+  const date = new Date(parseInt(year), parseInt(month) - 1);
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${monthNames[date.getMonth()]}-${year.substring(2)}`;
 }
