@@ -192,9 +192,15 @@ export default function PaymentsPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="text-right">
-                          <span className="text-lg font-semibold text-green-600">
-                            +₹{Number(transaction.amount).toLocaleString("en-IN")}
-                          </span>
+                          {(() => {
+                            const amount = Number(transaction.amount);
+                            const isPositive = amount >= 0;
+                            return (
+                              <span className={`text-lg font-semibold ${isPositive ? 'text-green-600' : 'text-orange-600'}`}>
+                                {isPositive ? '+' : ''}₹{Math.abs(amount).toLocaleString("en-IN")}
+                              </span>
+                            );
+                          })()}
                           <Badge variant="outline" className="ml-2 text-xs capitalize">
                             {transaction.type}
                           </Badge>

@@ -335,7 +335,7 @@ async function handleDepositUsedForRent(
   );
 }
 
-// Handle credit applied
+// Handle credit applied - Use existing credit balance to pay rent
 async function handleCreditApplied(
   tenantId: string,
   amount: number,
@@ -344,17 +344,115 @@ async function handleCreditApplied(
   now: string
 ) {
   const ledgerId = generateId();
+  let remainingAmount = amount;
+  const appliedPeriods: string[] = [];
 
+  // Create NEGATIVE ledger entry to reduce credit balance
   await db.execute({
     sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, amount, description, created_at)
           VALUES (?, ?, ?, 'credit', ?, ?, ?)`,
-    args: [ledgerId, tenantId, transactionDate, amount, notes || "Credit applied", now],
+    args: [ledgerId, tenantId, transactionDate, -amount, notes || "Credit applied to rent", now],
   });
+
+  // Get tenant's rooms and monthly rent
+  const roomsResult = await db.execute({
+    sql: `SELECT r.monthly_rent, tr.move_in_date
+          FROM tenant_rooms tr
+          JOIN rooms r ON tr.room_id = r.id
+          WHERE tr.tenant_id = ? AND tr.is_active = 1`,
+    args: [tenantId],
+  });
+
+  if (roomsResult.rows.length === 0) {
+    // No active rooms - credit applied but nothing to pay
+    return NextResponse.json(
+      {
+        message: "Credit applied (no active rooms allocated)",
+        transactionId: ledgerId,
+        appliedTo: "none",
+      },
+      { status: 201 }
+    );
+  }
+
+  // Calculate total monthly rent
+  const monthlyRent = roomsResult.rows.reduce((sum, room) => sum + Number(room.monthly_rent), 0);
+
+  // Find the earliest move-in date
+  const earliestMoveIn = roomsResult.rows.reduce((earliest, room) => {
+    const moveInDate = new Date(room.move_in_date as string);
+    return !earliest || moveInDate < earliest ? moveInDate : earliest;
+  }, null as Date | null);
+
+  if (!earliestMoveIn) {
+    return NextResponse.json(
+      {
+        message: "Credit applied",
+        transactionId: ledgerId,
+        appliedTo: "none",
+      },
+      { status: 201 }
+    );
+  }
+
+  // Get already paid periods
+  const paidPeriodsResult = await db.execute({
+    sql: `SELECT for_period FROM rent_payments WHERE tenant_id = ? ORDER BY for_period`,
+    args: [tenantId],
+  });
+
+  const paidPeriods = new Set(paidPeriodsResult.rows.map(row => row.for_period as string));
+
+  // Generate list of periods from move-in to current month
+  const currentDate = new Date();
+  const periods: string[] = [];
+  let date = new Date(earliestMoveIn.getFullYear(), earliestMoveIn.getMonth(), 1);
+
+  while (date <= currentDate) {
+    const period = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    if (!paidPeriods.has(period)) {
+      periods.push(period);
+    }
+    date.setMonth(date.getMonth() + 1);
+  }
+
+  // Apply credit to unpaid periods
+  for (const period of periods) {
+    if (remainingAmount >= monthlyRent) {
+      // Pay full month
+      const rentPaymentId = generateId();
+      await db.execute({
+        sql: `INSERT INTO rent_payments (id, tenant_id, for_period, rent_amount, ledger_id, paid_at, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        args: [rentPaymentId, tenantId, period, monthlyRent, ledgerId, transactionDate, now],
+      });
+      remainingAmount -= monthlyRent;
+      appliedPeriods.push(period);
+    } else if (remainingAmount > 0) {
+      // Partial payment - record as much as possible
+      const rentPaymentId = generateId();
+      await db.execute({
+        sql: `INSERT INTO rent_payments (id, tenant_id, for_period, rent_amount, ledger_id, paid_at, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        args: [rentPaymentId, tenantId, period, remainingAmount, ledgerId, transactionDate, now],
+      });
+      appliedPeriods.push(`${period} (partial: ₹${remainingAmount})`);
+      remainingAmount = 0;
+      break;
+    }
+  }
+
+  // Build response message
+  let message = "Credit applied successfully";
+  if (appliedPeriods.length > 0) {
+    message += `. Applied to: ${appliedPeriods.join(", ")}`;
+  }
 
   return NextResponse.json(
     {
-      message: "Credit applied successfully",
+      message,
       transactionId: ledgerId,
+      appliedPeriods,
     },
     { status: 201 }
   );
@@ -444,8 +542,8 @@ export async function GET(request: NextRequest) {
     // For each transaction, fetch applied rent periods
     const transactionsWithDetails = await Promise.all(
       result.rows.map(async (transaction: any) => {
-        if (transaction.type === 'payment') {
-          // Get rent periods this payment was applied to
+        if (transaction.type === 'payment' || transaction.type === 'credit') {
+          // Get rent periods this payment/credit was applied to
           const rentPayments = await db.execute({
             sql: `SELECT for_period, rent_amount
                   FROM rent_payments
@@ -464,7 +562,7 @@ export async function GET(request: NextRequest) {
             appliedPeriods,
             appliedTo: appliedPeriods.length > 0
               ? appliedPeriods.map(p => `${formatPeriod(p.period as string)} (₹${p.amount})`).join(', ')
-              : 'Credit Balance',
+              : transaction.type === 'credit' ? 'Credit Adjustment' : 'Credit Balance',
           };
         }
         return {

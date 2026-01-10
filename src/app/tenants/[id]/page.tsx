@@ -239,25 +239,29 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
             <>
               {/* Mobile View */}
               <div className="md:hidden space-y-3">
-                {transactions.map((transaction) => (
-                  <div key={transaction.id} className="p-3 rounded-lg bg-muted/50">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-lg font-semibold text-green-600">
-                        +₹{Number(transaction.amount).toLocaleString("en-IN")}
-                      </span>
-                      <Badge variant="outline" className="capitalize">{transaction.type}</Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {new Date(transaction.transaction_date).toLocaleDateString("en-IN")}
-                      {transaction.payment_method && ` • ${transaction.payment_method}`}
-                    </p>
-                    {transaction.appliedTo && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Applied to: {transaction.appliedTo}
+                {transactions.map((transaction) => {
+                  const amount = Number(transaction.amount);
+                  const isPositive = amount >= 0;
+                  return (
+                    <div key={transaction.id} className="p-3 rounded-lg bg-muted/50">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className={`text-lg font-semibold ${isPositive ? 'text-green-600' : 'text-orange-600'}`}>
+                          {isPositive ? '+' : ''}₹{Math.abs(amount).toLocaleString("en-IN")}
+                        </span>
+                        <Badge variant="outline" className="capitalize">{transaction.type}</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {new Date(transaction.transaction_date).toLocaleDateString("en-IN")}
+                        {transaction.payment_method && ` • ${transaction.payment_method}`}
                       </p>
-                    )}
-                  </div>
-                ))}
+                      {transaction.appliedTo && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Applied to: {transaction.appliedTo}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Desktop View */}
@@ -273,19 +277,25 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {transactions.map((transaction) => (
-                      <TableRow key={transaction.id}>
-                        <TableCell>{new Date(transaction.transaction_date).toLocaleDateString("en-IN")}</TableCell>
-                        <TableCell className="font-medium text-green-600">+₹{Number(transaction.amount).toLocaleString("en-IN")}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="capitalize">{transaction.type}</Badge>
-                        </TableCell>
-                        <TableCell>{transaction.payment_method || "-"}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {transaction.appliedTo || "-"}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {transactions.map((transaction) => {
+                      const amount = Number(transaction.amount);
+                      const isPositive = amount >= 0;
+                      return (
+                        <TableRow key={transaction.id}>
+                          <TableCell>{new Date(transaction.transaction_date).toLocaleDateString("en-IN")}</TableCell>
+                          <TableCell className={`font-medium ${isPositive ? 'text-green-600' : 'text-orange-600'}`}>
+                            {isPositive ? '+' : ''}₹{Math.abs(amount).toLocaleString("en-IN")}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="capitalize">{transaction.type}</Badge>
+                          </TableCell>
+                          <TableCell>{transaction.payment_method || "-"}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {transaction.appliedTo || "-"}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
