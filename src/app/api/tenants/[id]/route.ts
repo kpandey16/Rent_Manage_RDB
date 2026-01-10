@@ -90,7 +90,9 @@ export async function GET(
     const today = new Date();
 
     for (const room of rooms.rows) {
-      const moveInDate = new Date(room.move_in_date);
+      if (!room.move_in_date) continue; // Skip if no move-in date
+
+      const moveInDate = new Date(room.move_in_date as string);
       const monthlyRent = Number(room.monthly_rent);
 
       // Calculate number of months between move-in date and today
