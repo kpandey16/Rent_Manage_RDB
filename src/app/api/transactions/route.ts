@@ -584,24 +584,7 @@ export async function GET(request: NextRequest) {
 
     const result = await db.execute({ sql, args });
 
-    // Get all rent payments for the tenant(s) to calculate credit balances
-    let allRentPaymentsSql = `SELECT ledger_id, SUM(rent_amount) as total
-                              FROM rent_payments`;
-    if (tenantId) {
-      allRentPaymentsSql += ` WHERE tenant_id = ?`;
-    }
-    allRentPaymentsSql += ` GROUP BY ledger_id`;
-
-    const allRentPayments = await db.execute({
-      sql: allRentPaymentsSql,
-      args: tenantId ? [tenantId] : []
-    });
-
-    const rentPaymentsByLedger = new Map(
-      allRentPayments.rows.map((row: any) => [row.ledger_id, Number(row.total)])
-    );
-
-    // For each transaction, fetch applied rent periods and calculate remaining credit
+    // For each transaction, fetch applied rent periods and calculate TOTAL credit balance at that time
     const transactionsWithDetails = await Promise.all(
       result.rows.map(async (transaction: any) => {
         if (transaction.type === 'payment' || transaction.type === 'credit') {
@@ -619,10 +602,29 @@ export async function GET(request: NextRequest) {
             amount: Number(rp.rent_amount),
           }));
 
-          // Calculate credit from this specific transaction
-          const transactionAmount = Number(transaction.amount);
-          const rentApplied = rentPaymentsByLedger.get(transaction.id) || 0;
-          const creditFromTransaction = transactionAmount - rentApplied;
+          // Calculate CUMULATIVE credit balance at the time of this transaction
+          // Sum all ledger entries up to and including this transaction
+          const ledgerUpToTransaction = await db.execute({
+            sql: `SELECT COALESCE(SUM(amount), 0) as total
+                  FROM tenant_ledger
+                  WHERE tenant_id = ?
+                    AND (transaction_date < ? OR (transaction_date = ? AND created_at <= ?))`,
+            args: [transaction.tenant_id, transaction.transaction_date, transaction.transaction_date, transaction.created_at],
+          });
+
+          // Sum all rent payments up to and including this transaction
+          const rentUpToTransaction = await db.execute({
+            sql: `SELECT COALESCE(SUM(rp.rent_amount), 0) as total
+                  FROM rent_payments rp
+                  JOIN tenant_ledger tl ON rp.ledger_id = tl.id
+                  WHERE rp.tenant_id = ?
+                    AND (tl.transaction_date < ? OR (tl.transaction_date = ? AND tl.created_at <= ?))`,
+            args: [transaction.tenant_id, transaction.transaction_date, transaction.transaction_date, transaction.created_at],
+          });
+
+          const ledgerTotal = Number(ledgerUpToTransaction.rows[0].total);
+          const rentTotal = Number(rentUpToTransaction.rows[0].total);
+          const cumulativeCreditBalance = ledgerTotal - rentTotal;
 
           return {
             ...transaction,
@@ -630,7 +632,7 @@ export async function GET(request: NextRequest) {
             appliedTo: appliedPeriods.length > 0
               ? appliedPeriods.map(p => `${formatPeriod(p.period as string)} (₹${p.amount})`).join(', ')
               : transaction.type === 'credit' ? 'Credit Adjustment' : 'Credit Balance',
-            creditRemaining: creditFromTransaction,
+            creditRemaining: cumulativeCreditBalance,
           };
         }
         return {
