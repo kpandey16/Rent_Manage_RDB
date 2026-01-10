@@ -86,15 +86,31 @@ async function handlePayment(
   now: string
 ) {
   const ledgerId = generateId();
-  let remainingAmount = amount;
   const appliedPeriods: string[] = [];
 
-  // Create ledger entry
+  // Get existing credit balance BEFORE creating the ledger entry
+  const existingCreditResult = await db.execute({
+    sql: `SELECT
+            COALESCE(SUM(tl.amount), 0) as ledger_total,
+            COALESCE((SELECT SUM(rent_amount) FROM rent_payments WHERE tenant_id = ?), 0) as payments_total
+          FROM tenant_ledger tl
+          WHERE tl.tenant_id = ?`,
+    args: [tenantId, tenantId],
+  });
+
+  const ledgerTotal = Number(existingCreditResult.rows[0].ledger_total);
+  const paymentsTotal = Number(existingCreditResult.rows[0].payments_total);
+  const existingCredit = ledgerTotal - paymentsTotal;
+
+  // Create ledger entry for the new payment
   await db.execute({
     sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, amount, payment_method, description, created_at)
           VALUES (?, ?, ?, 'payment', ?, ?, ?, ?)`,
     args: [ledgerId, tenantId, transactionDate, amount, method, notes || "Payment received", now],
   });
+
+  // Calculate total available amount (existing credit + new payment)
+  let remainingAmount = existingCredit + amount;
 
   // Get tenant's rooms and monthly rent
   const roomsResult = await db.execute({
@@ -188,11 +204,18 @@ async function handlePayment(
 
   // Build response message
   let message = "Payment recorded successfully";
+
+  // Show if existing credit was used
+  if (existingCredit > 0) {
+    const totalApplied = (existingCredit + amount) - remainingAmount;
+    message += `. Used ₹${existingCredit.toLocaleString("en-IN")} existing credit + ₹${amount.toLocaleString("en-IN")} new payment`;
+  }
+
   if (appliedPeriods.length > 0) {
     message += `. Applied to: ${appliedPeriods.join(", ")}`;
   }
   if (remainingAmount > 0) {
-    message += `. Credit balance: ₹${remainingAmount}`;
+    message += `. Remaining credit: ₹${remainingAmount.toLocaleString("en-IN")}`;
   }
 
   return NextResponse.json(
@@ -201,6 +224,7 @@ async function handlePayment(
       transactionId: ledgerId,
       appliedPeriods,
       creditAmount: remainingAmount,
+      existingCreditUsed: existingCredit,
     },
     { status: 201 }
   );
