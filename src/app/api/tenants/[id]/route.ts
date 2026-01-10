@@ -55,13 +55,19 @@ export async function GET(
       args: [id],
     });
 
-    // Get credit balance (total ledger amount)
+    // Get credit balance (ledger total - rent payments applied)
     const creditBalance = await db.execute({
-      sql: `SELECT COALESCE(SUM(amount), 0) as balance
-            FROM tenant_ledger
-            WHERE tenant_id = ?`,
-      args: [id],
+      sql: `SELECT
+              COALESCE(SUM(tl.amount), 0) as ledger_total,
+              COALESCE((SELECT SUM(rent_amount) FROM rent_payments WHERE tenant_id = ?), 0) as payments_total
+            FROM tenant_ledger tl
+            WHERE tl.tenant_id = ?`,
+      args: [id, id],
     });
+
+    const ledgerTotal = Number(creditBalance.rows[0].ledger_total);
+    const paymentsTotal = Number(creditBalance.rows[0].payments_total);
+    const actualCreditBalance = ledgerTotal - paymentsTotal;
 
     // Get total rent paid
     const totalRentPaid = await db.execute({
@@ -105,15 +111,14 @@ export async function GET(
 
     // Calculate total dues
     // Total dues = Rent owed - Credits (payments made)
-    const credit = Number(creditBalance.rows[0].balance);
-    const totalDues = Math.max(0, totalRentOwed - credit);
+    const totalDues = Math.max(0, totalRentOwed - ledgerTotal);
 
     const tenantDetails = {
       ...tenant.rows[0],
       rooms: rooms.rows,
       monthlyRent,
       securityDeposit: Number(depositBalance.rows[0].balance),
-      creditBalance: credit,
+      creditBalance: actualCreditBalance,
       totalDues,
       lastPaidMonth,
     };

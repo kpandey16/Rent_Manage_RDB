@@ -35,6 +35,7 @@ interface Transaction {
   payment_method: string | null;
   description: string | null;
   appliedTo?: string;
+  creditRemaining?: number | null;
 }
 
 interface Tenant {
@@ -259,6 +260,11 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
                           Applied to: {transaction.appliedTo}
                         </p>
                       )}
+                      {transaction.creditRemaining !== null && transaction.creditRemaining !== undefined && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {transaction.creditRemaining > 0 ? 'Remaining credit' : transaction.creditRemaining < 0 ? 'Remaining dues' : 'Fully applied'}: {transaction.creditRemaining !== 0 && `₹${Math.abs(transaction.creditRemaining).toLocaleString("en-IN")}`}
+                        </p>
+                      )}
                     </div>
                   );
                 })}
@@ -291,7 +297,15 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
                           </TableCell>
                           <TableCell>{transaction.payment_method || "-"}</TableCell>
                           <TableCell className="text-sm text-muted-foreground">
-                            {transaction.appliedTo || "-"}
+                            <div>
+                              {transaction.appliedTo && <div>{transaction.appliedTo}</div>}
+                              {transaction.creditRemaining !== null && transaction.creditRemaining !== undefined && (
+                                <div className="text-xs mt-1">
+                                  {transaction.creditRemaining > 0 ? 'Credit: ' : transaction.creditRemaining < 0 ? 'Dues: ' : 'Fully applied'}
+                                  {transaction.creditRemaining !== 0 && `₹${Math.abs(transaction.creditRemaining).toLocaleString("en-IN")}`}
+                                </div>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       );

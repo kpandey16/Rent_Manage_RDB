@@ -34,6 +34,7 @@ interface Transaction {
   description: string | null;
   created_at: string;
   appliedTo?: string;
+  creditRemaining?: number | null;
 }
 
 interface Withdrawal {
@@ -182,6 +183,11 @@ export default function PaymentsPage() {
                         {transaction.appliedTo && (
                           <p className="text-xs text-muted-foreground">
                             Applied to: {transaction.appliedTo}
+                          </p>
+                        )}
+                        {transaction.creditRemaining !== null && transaction.creditRemaining !== undefined && (
+                          <p className="text-xs text-muted-foreground">
+                            {transaction.creditRemaining > 0 ? 'Remaining credit' : transaction.creditRemaining < 0 ? 'Remaining dues' : 'Fully applied'}: {transaction.creditRemaining !== 0 && `₹${Math.abs(transaction.creditRemaining).toLocaleString("en-IN")}`}
                           </p>
                         )}
                         {transaction.description && transaction.description !== "Payment received" && (

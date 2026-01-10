@@ -607,7 +607,24 @@ export async function GET(request: NextRequest) {
 
     const result = await db.execute({ sql, args });
 
-    // For each transaction, fetch applied rent periods
+    // Get all rent payments for the tenant(s) to calculate credit balances
+    let allRentPaymentsSql = `SELECT ledger_id, SUM(rent_amount) as total
+                              FROM rent_payments`;
+    if (tenantId) {
+      allRentPaymentsSql += ` WHERE tenant_id = ?`;
+    }
+    allRentPaymentsSql += ` GROUP BY ledger_id`;
+
+    const allRentPayments = await db.execute({
+      sql: allRentPaymentsSql,
+      args: tenantId ? [tenantId] : []
+    });
+
+    const rentPaymentsByLedger = new Map(
+      allRentPayments.rows.map((row: any) => [row.ledger_id, Number(row.total)])
+    );
+
+    // For each transaction, fetch applied rent periods and calculate remaining credit
     const transactionsWithDetails = await Promise.all(
       result.rows.map(async (transaction: any) => {
         if (transaction.type === 'payment' || transaction.type === 'credit') {
@@ -625,18 +642,25 @@ export async function GET(request: NextRequest) {
             amount: Number(rp.rent_amount),
           }));
 
+          // Calculate credit from this specific transaction
+          const transactionAmount = Number(transaction.amount);
+          const rentApplied = rentPaymentsByLedger.get(transaction.id) || 0;
+          const creditFromTransaction = transactionAmount - rentApplied;
+
           return {
             ...transaction,
             appliedPeriods,
             appliedTo: appliedPeriods.length > 0
               ? appliedPeriods.map(p => `${formatPeriod(p.period as string)} (₹${p.amount})`).join(', ')
               : transaction.type === 'credit' ? 'Credit Adjustment' : 'Credit Balance',
+            creditRemaining: creditFromTransaction,
           };
         }
         return {
           ...transaction,
           appliedPeriods: [],
           appliedTo: transaction.type === 'deposit' ? 'Security Deposit' : 'Other',
+          creditRemaining: null,
         };
       })
     );
