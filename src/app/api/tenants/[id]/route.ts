@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { calculateTotalRentOwed } from "@/lib/rent-calculator";
 
 // GET /api/tenants/[id] - Get tenant details with financial information
 export async function GET(
@@ -91,23 +92,9 @@ export async function GET(
       ? formatPeriod(lastPayment.rows[0].for_period as string)
       : null;
 
-    // Calculate total rent owed based on allocation date and current date
-    let totalRentOwed = 0;
-    const today = new Date();
-
-    for (const room of rooms.rows) {
-      if (!room.move_in_date) continue; // Skip if no move-in date
-
-      const moveInDate = new Date(room.move_in_date as string);
-      const monthlyRent = Number(room.monthly_rent);
-
-      // Calculate number of months between move-in date and today
-      const yearsDiff = today.getFullYear() - moveInDate.getFullYear();
-      const monthsDiff = today.getMonth() - moveInDate.getMonth();
-      const totalMonths = yearsDiff * 12 + monthsDiff + 1; // +1 to include the current month
-
-      totalRentOwed += totalMonths * monthlyRent;
-    }
+    // Calculate total rent owed using rent update history
+    // This will use the correct rent for each month based on effective dates
+    const totalRentOwed = await calculateTotalRentOwed(id, db);
 
     // Calculate total dues
     // Total dues = Rent owed - Credits (payments made)

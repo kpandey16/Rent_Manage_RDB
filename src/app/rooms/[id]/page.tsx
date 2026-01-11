@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/table";
 import { ArrowLeft, User, IndianRupee, Calendar, History, Edit, Loader2 } from "lucide-react";
 import { AllocateRoomForm } from "@/components/forms/allocate-room-form";
+import { UpdateRentForm } from "@/components/forms/update-rent-form";
 import { toast } from "sonner";
 
 interface CurrentTenant {
@@ -130,7 +131,15 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
         <CardContent className="p-4 space-y-3">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-sm text-muted-foreground">Current Rent</p>
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">Current Rent</p>
+                <UpdateRentForm
+                  roomId={room.id}
+                  roomCode={room.code}
+                  currentRent={room.currentRent}
+                  onSuccess={handleRoomAllocated}
+                />
+              </div>
               <p className="text-2xl font-bold">₹{room.currentRent.toLocaleString("en-IN")}</p>
               <p className="text-xs text-muted-foreground">per month</p>
             </div>
