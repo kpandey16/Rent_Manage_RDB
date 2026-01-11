@@ -41,6 +41,16 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
+interface Room {
+  id: string;
+  code: string;
+  name: string;
+  currentRent: number;
+  expectedRent: number;
+  moveInDate: string;
+  isActive: boolean;
+}
+
 interface Tenant {
   id: string;
   name: string;
@@ -49,6 +59,9 @@ interface Tenant {
   lastPaidMonth: string | null;
   creditBalance: number;
   totalDues: number;
+  rooms: Room[];
+  nextUnpaidPeriod: string | null;
+  nextUnpaidPeriodRaw: string | null;
 }
 
 const paymentTypes = [
@@ -179,7 +192,9 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
 
   const handleQuickFill = () => {
     if (selectedTenant) {
-      setFormData((prev) => ({ ...prev, amount: selectedTenant.monthlyRent }));
+      // Use total expected rent if rooms data is available, otherwise use monthly rent
+      const expectedTotal = selectedTenant.rooms?.reduce((sum, room) => sum + room.expectedRent, 0) || selectedTenant.monthlyRent;
+      setFormData((prev) => ({ ...prev, amount: expectedTotal }));
     }
   };
 
@@ -255,29 +270,80 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
 
             {/* Tenant Information Display */}
             {selectedTenant && (
-              <div className="rounded-lg border bg-muted/50 p-4">
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <p className="text-muted-foreground">Monthly Rent</p>
-                    <p className="font-semibold">₹{selectedTenant.monthlyRent.toLocaleString("en-IN")}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Last Paid Month</p>
-                    <p className="font-semibold">{selectedTenant.lastPaidMonth}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Credit Balance</p>
-                    <p className={`font-semibold ${selectedTenant.creditBalance > 0 ? 'text-green-600' : ''}`}>
-                      ₹{selectedTenant.creditBalance.toLocaleString("en-IN")}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Total Dues</p>
-                    <p className={`font-semibold ${selectedTenant.totalDues > 0 ? 'text-red-600' : ''}`}>
-                      ₹{selectedTenant.totalDues.toLocaleString("en-IN")}
-                    </p>
+              <div className="space-y-3">
+                <div className="rounded-lg border bg-muted/50 p-4">
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-muted-foreground">Monthly Rent</p>
+                      <p className="font-semibold">₹{selectedTenant.monthlyRent.toLocaleString("en-IN")}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Last Paid Month</p>
+                      <p className="font-semibold">{selectedTenant.lastPaidMonth || "N/A"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Credit Balance</p>
+                      <p className={`font-semibold ${selectedTenant.creditBalance > 0 ? 'text-green-600' : ''}`}>
+                        ₹{selectedTenant.creditBalance.toLocaleString("en-IN")}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Total Dues</p>
+                      <p className={`font-semibold ${selectedTenant.totalDues > 0 ? 'text-red-600' : ''}`}>
+                        ₹{selectedTenant.totalDues.toLocaleString("en-IN")}
+                      </p>
+                    </div>
                   </div>
                 </div>
+
+                {/* Room Breakdown */}
+                {selectedTenant.rooms && selectedTenant.rooms.length > 0 && (
+                  <div className="rounded-lg border bg-muted/50 p-4">
+                    <div className="mb-3 flex items-center justify-between">
+                      <p className="text-sm font-semibold">
+                        Rooms & Expected Rent
+                        {selectedTenant.nextUnpaidPeriod && (
+                          <span className="ml-2 text-muted-foreground font-normal">
+                            (for {selectedTenant.nextUnpaidPeriod})
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      {selectedTenant.rooms.map((room) => (
+                        <div
+                          key={room.id}
+                          className="flex items-center justify-between text-sm py-2 border-t first:border-t-0 first:pt-0"
+                        >
+                          <div>
+                            <p className="font-medium">{room.code}</p>
+                            <p className="text-xs text-muted-foreground">{room.name}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-semibold">
+                              ₹{room.expectedRent.toLocaleString("en-IN")}
+                            </p>
+                            {room.expectedRent !== room.currentRent && (
+                              <p className="text-xs text-muted-foreground">
+                                (Current: ₹{room.currentRent.toLocaleString("en-IN")})
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      {selectedTenant.rooms.length > 1 && (
+                        <div className="flex items-center justify-between text-sm pt-2 border-t font-semibold">
+                          <p>Total Expected</p>
+                          <p>
+                            ₹{selectedTenant.rooms
+                              .reduce((sum, room) => sum + room.expectedRent, 0)
+                              .toLocaleString("en-IN")}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -293,7 +359,10 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
                     className="h-auto p-0 text-xs"
                     onClick={handleQuickFill}
                   >
-                    Fill monthly rent (₹{selectedTenant.monthlyRent.toLocaleString("en-IN")})
+                    {(() => {
+                      const expectedTotal = selectedTenant.rooms?.reduce((sum, room) => sum + room.expectedRent, 0) || selectedTenant.monthlyRent;
+                      return `Fill expected rent (₹${expectedTotal.toLocaleString("en-IN")})`;
+                    })()}
                   </Button>
                 )}
               </div>

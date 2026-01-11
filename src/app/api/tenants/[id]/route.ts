@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { calculateTotalRentOwed } from "@/lib/rent-calculator";
+import { calculateTotalRentOwed, getRentForPeriod } from "@/lib/rent-calculator";
 
 // GET /api/tenants/[id] - Get tenant details with financial information
 export async function GET(
@@ -38,8 +38,64 @@ export async function GET(
       args: [id],
     });
 
-    // Calculate total monthly rent
+    // Calculate total monthly rent (current rent)
     const monthlyRent = rooms.rows.reduce((sum, room) => sum + Number(room.monthly_rent), 0);
+
+    // Find the next unpaid period to show expected rent for that month
+    let nextUnpaidPeriod: string | null = null;
+
+    if (rooms.rows.length > 0) {
+      // Get already paid periods
+      const paidPeriodsResult = await db.execute({
+        sql: `SELECT for_period FROM rent_payments WHERE tenant_id = ? ORDER BY for_period`,
+        args: [id],
+      });
+
+      const paidPeriods = new Set(paidPeriodsResult.rows.map(row => row.for_period as string));
+
+      // Find earliest move-in date
+      const earliestMoveIn = rooms.rows.reduce((earliest: Date | null, room: any) => {
+        const moveInDate = new Date(room.move_in_date as string);
+        return !earliest || moveInDate < earliest ? moveInDate : earliest;
+      }, null);
+
+      if (earliestMoveIn) {
+        // Generate periods from move-in to current month to find next unpaid
+        const currentDate = new Date();
+        let date = new Date(earliestMoveIn.getFullYear(), earliestMoveIn.getMonth(), 1);
+
+        while (date <= currentDate) {
+          const period = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+          if (!paidPeriods.has(period)) {
+            nextUnpaidPeriod = period;
+            break;
+          }
+          date.setMonth(date.getMonth() + 1);
+        }
+      }
+    }
+
+    // Enhance room data with expected rent for next unpaid period
+    const roomsWithExpectedRent = await Promise.all(
+      rooms.rows.map(async (room: any) => {
+        let expectedRent = Number(room.monthly_rent); // Default to current rent
+
+        if (nextUnpaidPeriod) {
+          // Get historical rent for this room for the next unpaid period
+          expectedRent = await getRentForPeriod(room.id as string, nextUnpaidPeriod, db);
+        }
+
+        return {
+          id: room.id,
+          code: room.code,
+          name: room.name,
+          currentRent: Number(room.monthly_rent),
+          expectedRent: expectedRent,
+          moveInDate: room.move_in_date,
+          isActive: room.is_active,
+        };
+      })
+    );
 
     // Get security deposit balance
     const depositBalance = await db.execute({
@@ -102,12 +158,14 @@ export async function GET(
 
     const tenantDetails = {
       ...tenant.rows[0],
-      rooms: rooms.rows,
+      rooms: roomsWithExpectedRent,
       monthlyRent,
       securityDeposit: Number(depositBalance.rows[0].balance),
       creditBalance: actualCreditBalance,
       totalDues,
       lastPaidMonth,
+      nextUnpaidPeriod: nextUnpaidPeriod ? formatPeriod(nextUnpaidPeriod) : null,
+      nextUnpaidPeriodRaw: nextUnpaidPeriod,
     };
 
     return NextResponse.json({ tenant: tenantDetails });
