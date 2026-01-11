@@ -138,9 +138,10 @@ export default function PaymentsPage() {
     fetchTransactions();
   };
 
-  const handleWithdrawalSubmit = (data: unknown) => {
-    console.log("Withdrawal recorded:", data);
-    toast.info("Withdrawal tracking coming soon");
+  const handleWithdrawalSuccess = () => {
+    // Refresh transactions after recording withdrawal
+    // Note: Main withdrawal tracking is now in /cash-management page
+    toast.success("Withdrawal recorded. View full details in Cash Management.");
   };
 
   return (
@@ -239,7 +240,7 @@ export default function PaymentsPage() {
                   <SelectItem value="all">All Time</SelectItem>
                 </SelectContent>
               </Select>
-              <RecordWithdrawalForm onSubmit={handleWithdrawalSubmit} />
+              <RecordWithdrawalForm onSuccess={handleWithdrawalSuccess} />
             </div>
 
             {/* Custom Date Range Inputs */}
