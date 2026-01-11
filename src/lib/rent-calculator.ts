@@ -58,6 +58,59 @@ export async function getRentForPeriod(
 }
 
 /**
+ * Get total rent for a tenant for a specific period
+ * Considers which rooms were allocated and their historical rent
+ * @param tenantId - The tenant ID
+ * @param period - The period in YYYY-MM format
+ * @param db - Database instance
+ * @returns Total rent for that period
+ */
+export async function getTenantRentForPeriod(
+  tenantId: string,
+  period: string,
+  db: any
+): Promise<number> {
+  const [year, month] = period.split("-");
+  const periodDate = new Date(parseInt(year), parseInt(month) - 1, 1);
+
+  // Get all room allocations for this tenant
+  const allocations = await db.execute({
+    sql: `SELECT room_id, move_in_date, move_out_date
+          FROM tenant_rooms
+          WHERE tenant_id = ?`,
+    args: [tenantId],
+  });
+
+  let totalRent = 0;
+
+  for (const allocation of allocations.rows) {
+    const moveInDate = new Date(allocation.move_in_date as string);
+    const moveOutDate = allocation.move_out_date
+      ? new Date(allocation.move_out_date as string)
+      : null;
+
+    // Check if this room was allocated during this period
+    const periodStart = new Date(periodDate.getFullYear(), periodDate.getMonth(), 1);
+    const periodEnd = new Date(periodDate.getFullYear(), periodDate.getMonth() + 1, 0);
+
+    // Room is active in this period if:
+    // - Move-in date is before or during this period
+    // - Move-out date is null (still active) OR after this period starts
+    const isActiveInPeriod =
+      moveInDate <= periodEnd &&
+      (!moveOutDate || moveOutDate >= periodStart);
+
+    if (isActiveInPeriod) {
+      const roomId = allocation.room_id as string;
+      const rentForPeriod = await getRentForPeriod(roomId, period, db);
+      totalRent += rentForPeriod;
+    }
+  }
+
+  return totalRent;
+}
+
+/**
  * Calculate total rent owed for a tenant considering rent update history
  * @param tenantId - The tenant ID
  * @param db - Database instance

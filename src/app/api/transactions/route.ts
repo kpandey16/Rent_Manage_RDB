@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, generateId, getCurrentDateTime } from "@/lib/db";
+import { getTenantRentForPeriod } from "@/lib/rent-calculator";
 
 // POST /api/transactions - Record a transaction (payment, deposit, etc.)
 export async function POST(request: NextRequest) {
@@ -112,12 +113,11 @@ async function handlePayment(
   // Calculate total available amount (existing credit + new payment)
   let remainingAmount = existingCredit + amount;
 
-  // Get tenant's rooms and monthly rent
+  // Get tenant's room allocations to find earliest move-in date
   const roomsResult = await db.execute({
-    sql: `SELECT r.monthly_rent, tr.move_in_date
-          FROM tenant_rooms tr
-          JOIN rooms r ON tr.room_id = r.id
-          WHERE tr.tenant_id = ? AND tr.is_active = 1`,
+    sql: `SELECT move_in_date
+          FROM tenant_rooms
+          WHERE tenant_id = ? AND is_active = 1`,
     args: [tenantId],
   });
 
@@ -133,9 +133,6 @@ async function handlePayment(
       { status: 201 }
     );
   }
-
-  // Calculate total monthly rent
-  const monthlyRent = roomsResult.rows.reduce((sum, room) => sum + Number(room.monthly_rent), 0);
 
   // Find the earliest move-in date
   const earliestMoveIn = roomsResult.rows.reduce((earliest, room) => {
@@ -178,15 +175,18 @@ async function handlePayment(
 
   // Apply payment to unpaid periods - ONLY IF CAN PAY FULL MONTH
   for (const period of periods) {
-    if (remainingAmount >= monthlyRent) {
+    // Get the correct rent for this specific period (considers rent updates and room allocations)
+    const periodRent = await getTenantRentForPeriod(tenantId, period, db);
+
+    if (remainingAmount >= periodRent) {
       // Pay full month
       const rentPaymentId = generateId();
       await db.execute({
         sql: `INSERT INTO rent_payments (id, tenant_id, for_period, rent_amount, ledger_id, paid_at, created_at)
               VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        args: [rentPaymentId, tenantId, period, monthlyRent, ledgerId, transactionDate, now],
+        args: [rentPaymentId, tenantId, period, periodRent, ledgerId, transactionDate, now],
       });
-      remainingAmount -= monthlyRent;
+      remainingAmount -= periodRent;
       appliedPeriods.push(period);
     } else {
       // Not enough to pay full month - stop here, keep as credit
@@ -397,12 +397,11 @@ async function handleCreditApplied(
     args: [ledgerId, tenantId, transactionDate, -amount, notes || "Credit applied to rent", now],
   });
 
-  // Get tenant's rooms and monthly rent
+  // Get tenant's room allocations to find earliest move-in date
   const roomsResult = await db.execute({
-    sql: `SELECT r.monthly_rent, tr.move_in_date
-          FROM tenant_rooms tr
-          JOIN rooms r ON tr.room_id = r.id
-          WHERE tr.tenant_id = ? AND tr.is_active = 1`,
+    sql: `SELECT move_in_date
+          FROM tenant_rooms
+          WHERE tenant_id = ? AND is_active = 1`,
     args: [tenantId],
   });
 
@@ -417,9 +416,6 @@ async function handleCreditApplied(
       { status: 201 }
     );
   }
-
-  // Calculate total monthly rent
-  const monthlyRent = roomsResult.rows.reduce((sum, room) => sum + Number(room.monthly_rent), 0);
 
   // Find the earliest move-in date
   const earliestMoveIn = roomsResult.rows.reduce((earliest, room) => {
@@ -461,15 +457,18 @@ async function handleCreditApplied(
 
   // Apply credit to unpaid periods - ONLY IF CAN PAY FULL MONTH
   for (const period of periods) {
-    if (remainingAmount >= monthlyRent) {
+    // Get the correct rent for this specific period (considers rent updates and room allocations)
+    const periodRent = await getTenantRentForPeriod(tenantId, period, db);
+
+    if (remainingAmount >= periodRent) {
       // Pay full month
       const rentPaymentId = generateId();
       await db.execute({
         sql: `INSERT INTO rent_payments (id, tenant_id, for_period, rent_amount, ledger_id, paid_at, created_at)
               VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        args: [rentPaymentId, tenantId, period, monthlyRent, ledgerId, transactionDate, now],
+        args: [rentPaymentId, tenantId, period, periodRent, ledgerId, transactionDate, now],
       });
-      remainingAmount -= monthlyRent;
+      remainingAmount -= periodRent;
       appliedPeriods.push(period);
     } else {
       // Not enough to pay full month - stop here
