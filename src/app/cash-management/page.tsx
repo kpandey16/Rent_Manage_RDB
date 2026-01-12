@@ -6,7 +6,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RecordExpenseForm } from "@/components/forms/record-expense-form";
 import { RecordWithdrawalForm } from "@/components/forms/record-withdrawal-form";
 import { Button } from "@/components/ui/button";
-import { Wallet, TrendingDown, TrendingUp, DollarSign, RefreshCw } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Wallet, TrendingDown, TrendingUp, DollarSign, RefreshCw, Calendar } from "lucide-react";
 import { format } from "date-fns";
 
 interface CashStatus {
@@ -43,14 +45,27 @@ export default function CashManagementPage() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [useCustomDate, setUseCustomDate] = useState(false);
 
   const fetchData = async () => {
     try {
       setLoading(true);
+
+      // Build query params for date filter
+      const statusParams = new URLSearchParams();
+      const historyParams = new URLSearchParams();
+
+      if (useCustomDate && dateFrom) {
+        statusParams.set("sinceDate", dateFrom);
+        historyParams.set("sinceDate", dateFrom);
+      }
+
       const [statusRes, expensesRes, withdrawalsRes] = await Promise.all([
-        fetch("/api/operator/status"),
-        fetch("/api/operator/expenses"),
-        fetch("/api/operator/withdrawals"),
+        fetch(`/api/operator/status?${statusParams}`),
+        fetch(`/api/operator/expenses?${historyParams}`),
+        fetch(`/api/operator/withdrawals?${historyParams}`),
       ]);
 
       if (statusRes.ok) {
@@ -76,7 +91,18 @@ export default function CashManagementPage() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [useCustomDate, dateFrom]);
+
+  const handleApplyDateFilter = () => {
+    setUseCustomDate(true);
+    fetchData();
+  };
+
+  const handleClearDateFilter = () => {
+    setUseCustomDate(false);
+    setDateFrom("");
+    setDateTo("");
+  };
 
   const formatDate = (dateString: string) => {
     try {
@@ -129,6 +155,60 @@ export default function CashManagementPage() {
           Refresh
         </Button>
       </div>
+
+      {/* Date Range Filter */}
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Calendar className="h-5 w-5" />
+            Date Range Filter
+          </CardTitle>
+          <CardDescription>
+            Filter collections and expenses by date range
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col md:flex-row gap-3 items-end">
+            <div className="flex-1">
+              <Label htmlFor="dateFrom">From Date</Label>
+              <Input
+                id="dateFrom"
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+            <div className="flex-1">
+              <Label htmlFor="dateTo">To Date (optional)</Label>
+              <Input
+                id="dateTo"
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="mt-1"
+                disabled
+              />
+              <p className="text-xs text-muted-foreground mt-1">Currently shows all data since from date</p>
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={handleApplyDateFilter} disabled={!dateFrom}>
+                Apply Filter
+              </Button>
+              {useCustomDate && (
+                <Button onClick={handleClearDateFilter} variant="outline">
+                  Clear Filter
+                </Button>
+              )}
+            </div>
+          </div>
+          {useCustomDate && dateFrom && (
+            <div className="mt-3 text-sm text-muted-foreground">
+              <p>Showing data from {formatDate(dateFrom)} onwards</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Tabs defaultValue="dashboard" className="space-y-4">
         <TabsList>

@@ -168,16 +168,10 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
       {/* Rent History */}
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base flex items-center gap-2">
-              <IndianRupee className="h-4 w-4" />
-              Rent History
-            </CardTitle>
-            <Button size="sm" variant="outline">
-              <Edit className="h-4 w-4 mr-1" />
-              Update Rent
-            </Button>
-          </div>
+          <CardTitle className="text-base flex items-center gap-2">
+            <IndianRupee className="h-4 w-4" />
+            Rent History
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {room.rentHistory.length === 0 ? (

@@ -1,39 +1,109 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DoorOpen, Users, AlertTriangle, IndianRupee } from "lucide-react";
+import { DoorOpen, Users, AlertTriangle, IndianRupee, Loader2 } from "lucide-react";
 import { SearchFilter } from "@/components/search-filter";
 import { TenantOverviewTable, TenantOverview, SortField, SortDirection } from "@/components/tenant-overview-table";
 
-// Placeholder data - will be fetched from DB
-const stats = {
-  occupiedRooms: 8,
-  vacantRooms: 2,
-  activeTenants: 7,
-  defaultersCount: 4,
-  totalDues: 60000,
-  thisMonthCollection: 45000,
-};
-
-const tenantsOverview: TenantOverview[] = [
-  { id: "1", name: "Amit Sharma", rooms: ["R1"], monthlyRent: 5000, lastPaidMonth: "Jan-26", pendingMonths: 0, totalDues: 0, securityDeposit: 10000, creditBalance: 500 },
-  { id: "2", name: "Priya Singh", rooms: ["R2", "R4"], monthlyRent: 9000, lastPaidMonth: "Jan-26", pendingMonths: 0, totalDues: 0, securityDeposit: 18000, creditBalance: 0 },
-  { id: "3", name: "Ramesh Kumar", rooms: ["R3"], monthlyRent: 5500, lastPaidMonth: "Nov-25", pendingMonths: 2, totalDues: 11000, securityDeposit: 11000, creditBalance: 0 },
-  { id: "4", name: "Sunita Devi", rooms: ["R5"], monthlyRent: 5000, lastPaidMonth: "Jan-26", pendingMonths: 0, totalDues: 0, securityDeposit: 10000, creditBalance: 200 },
-  { id: "5", name: "Suresh Patel", rooms: ["R7"], monthlyRent: 5000, lastPaidMonth: "Dec-25", pendingMonths: 1, totalDues: 5000, securityDeposit: 10000, creditBalance: 0 },
-  { id: "6", name: "Meera Joshi", rooms: ["R8"], monthlyRent: 4000, lastPaidMonth: "Oct-25", pendingMonths: 3, totalDues: 12000, securityDeposit: 8000, creditBalance: 0 },
-  { id: "7", name: "Vikram Rao", rooms: ["R9", "R10"], monthlyRent: 8000, lastPaidMonth: "Sep-25", pendingMonths: 4, totalDues: 32000, securityDeposit: 16000, creditBalance: 0 },
-];
+interface DashboardStats {
+  occupiedRooms: number;
+  vacantRooms: number;
+  activeTenants: number;
+  defaultersCount: number;
+  totalDues: number;
+  thisMonthCollection: number;
+}
 
 export default function Home() {
   const [search, setSearch] = useState("");
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [tenantsOverview, setTenantsOverview] = useState<TenantOverview[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showOptionalColumns, setShowOptionalColumns] = useState({
     securityDeposit: false,
     creditBalance: false,
   });
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setLoading(true);
+
+        // Fetch rooms and tenants data
+        const [roomsRes, tenantsRes] = await Promise.all([
+          fetch("/api/rooms"),
+          fetch("/api/tenants"),
+        ]);
+
+        if (!roomsRes.ok || !tenantsRes.ok) {
+          throw new Error("Failed to fetch dashboard data");
+        }
+
+        const roomsData = await roomsRes.json();
+        const tenantsData = await tenantsRes.json();
+
+        const rooms = roomsData.rooms || [];
+        const tenants = tenantsData.tenants || [];
+
+        // Calculate stats
+        const occupiedRooms = rooms.filter((r: any) => r.status === "occupied").length;
+        const vacantRooms = rooms.filter((r: any) => r.status === "vacant").length;
+        const activeTenants = tenants.filter((t: any) => t.is_active).length;
+        const defaultersCount = tenants.filter((t: any) => t.is_active && t.totalDues > 0).length;
+        const totalDues = tenants.reduce((sum: number, t: any) => sum + (t.totalDues || 0), 0);
+
+        // Calculate this month's collection
+        const currentDate = new Date();
+        const currentMonth = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+
+        const transactionsRes = await fetch("/api/transactions");
+        const transactionsData = await transactionsRes.json();
+        const transactions = transactionsData.transactions || [];
+
+        const thisMonthCollection = transactions
+          .filter((t: any) => {
+            const transactionMonth = t.transaction_date?.substring(0, 7);
+            return transactionMonth === currentMonth && t.type === 'payment';
+          })
+          .reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
+
+        setStats({
+          occupiedRooms,
+          vacantRooms,
+          activeTenants,
+          defaultersCount,
+          totalDues,
+          thisMonthCollection,
+        });
+
+        // Format tenants overview data
+        const tenantsOverviewData: TenantOverview[] = tenants
+          .filter((t: any) => t.is_active)
+          .map((tenant: any) => ({
+            id: tenant.id,
+            name: tenant.name,
+            rooms: tenant.rooms?.map((r: any) => r.code) || [],
+            monthlyRent: tenant.monthlyRent || 0,
+            lastPaidMonth: tenant.lastPaidMonth || "Never",
+            pendingMonths: 0, // Will be calculated based on dues/rent
+            totalDues: tenant.totalDues || 0,
+            securityDeposit: tenant.securityDeposit || 0,
+            creditBalance: tenant.creditBalance || 0,
+          }));
+
+        setTenantsOverview(tenantsOverviewData);
+      } catch (error) {
+        console.error("Error fetching dashboard data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, []);
 
   const filteredAndSortedTenants = useMemo(() => {
     let result = tenantsOverview;
@@ -87,6 +157,14 @@ export default function Home() {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 space-y-4">
       {/* Stats Grid */}
@@ -97,9 +175,11 @@ export default function Home() {
             <DoorOpen className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.occupiedRooms}/{stats.occupiedRooms + stats.vacantRooms}</div>
+            <div className="text-2xl font-bold">
+              {stats?.occupiedRooms || 0}/{(stats?.occupiedRooms || 0) + (stats?.vacantRooms || 0)}
+            </div>
             <p className="text-xs text-muted-foreground">
-              {stats.vacantRooms} vacant
+              {stats?.vacantRooms || 0} vacant
             </p>
           </CardContent>
         </Card>
@@ -110,7 +190,7 @@ export default function Home() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.activeTenants}</div>
+            <div className="text-2xl font-bold">{stats?.activeTenants || 0}</div>
             <p className="text-xs text-muted-foreground">
               Active tenants
             </p>
@@ -123,7 +203,7 @@ export default function Home() {
             <IndianRupee className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.thisMonthCollection.toLocaleString("en-IN")}</div>
+            <div className="text-2xl font-bold">₹{(stats?.thisMonthCollection || 0).toLocaleString("en-IN")}</div>
             <p className="text-xs text-muted-foreground">
               This month
             </p>
@@ -136,9 +216,9 @@ export default function Home() {
             <AlertTriangle className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-destructive">{stats.defaultersCount}</div>
+            <div className="text-2xl font-bold text-destructive">{stats?.defaultersCount || 0}</div>
             <p className="text-xs text-muted-foreground">
-              ₹{stats.totalDues.toLocaleString("en-IN")} dues
+              ₹{(stats?.totalDues || 0).toLocaleString("en-IN")} dues
             </p>
           </CardContent>
         </Card>
