@@ -48,9 +48,9 @@ export async function POST(request: NextRequest) {
     const { amount, category, description, recordedBy, date } = body;
 
     // Validation
-    if (!amount || !category || !description || !recordedBy || !date) {
+    if (!amount || !category || !description || !date) {
       return NextResponse.json(
-        { error: "Amount, category, description, recorded by, and date are required" },
+        { error: "Amount, category, description, and date are required" },
         { status: 400 }
       );
     }
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
     await db.execute({
       sql: `INSERT INTO operator_expenses (id, amount, category, description, recorded_by, expense_date, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      args: [expenseId, amount, category, description, recordedBy, date, now],
+      args: [expenseId, amount, category, description, recordedBy || "Operator", date, now],
     });
 
     return NextResponse.json(

@@ -48,9 +48,9 @@ export async function POST(request: NextRequest) {
     const { amount, method, withdrawnBy, date, notes } = body;
 
     // Validation
-    if (!amount || !method || !withdrawnBy || !date) {
+    if (!amount || !method || !date) {
       return NextResponse.json(
-        { error: "Amount, method, withdrawn by, and date are required" },
+        { error: "Amount, method, and date are required" },
         { status: 400 }
       );
     }
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
     await db.execute({
       sql: `INSERT INTO admin_withdrawals (id, amount, withdrawal_method, withdrawn_by, withdrawal_date, notes, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      args: [withdrawalId, amount, method, withdrawnBy, date, notes || null, now],
+      args: [withdrawalId, amount, method, withdrawnBy || "Admin", date, notes || null, now],
     });
 
     return NextResponse.json(

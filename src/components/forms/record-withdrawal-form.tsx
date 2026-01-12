@@ -51,7 +51,7 @@ export function RecordWithdrawalForm({ trigger, availableBalance, onSuccess }: R
   const [formData, setFormData] = useState<WithdrawalFormData>({
     amount: 0,
     method: "cash",
-    withdrawnBy: "",
+    withdrawnBy: "Admin", // Auto-populated default value
     date: format(new Date(), "yyyy-MM-dd"),
     notes: "",
   });
@@ -85,7 +85,7 @@ export function RecordWithdrawalForm({ trigger, availableBalance, onSuccess }: R
       setFormData({
         amount: 0,
         method: "cash",
-        withdrawnBy: "",
+        withdrawnBy: "Admin", // Auto-populated default value
         date: format(new Date(), "yyyy-MM-dd"),
         notes: "",
       });
@@ -184,7 +184,7 @@ export function RecordWithdrawalForm({ trigger, availableBalance, onSuccess }: R
 
             {/* Withdrawn By */}
             <div className="grid gap-2">
-              <Label htmlFor="withdrawnBy">Withdrawn By *</Label>
+              <Label htmlFor="withdrawnBy">Withdrawn By</Label>
               <Input
                 id="withdrawnBy"
                 type="text"
@@ -192,7 +192,6 @@ export function RecordWithdrawalForm({ trigger, availableBalance, onSuccess }: R
                 onChange={(e) => setFormData((prev) => ({ ...prev, withdrawnBy: e.target.value }))}
                 disabled={submitting}
                 placeholder="Admin name"
-                required
               />
             </div>
 
@@ -226,7 +225,7 @@ export function RecordWithdrawalForm({ trigger, availableBalance, onSuccess }: R
             <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={submitting}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!formData.amount || !formData.withdrawnBy || submitting}>
+            <Button type="submit" disabled={!formData.amount || submitting}>
               {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {submitting ? "Recording..." : "Record Withdrawal"}
             </Button>

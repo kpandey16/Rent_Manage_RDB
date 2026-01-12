@@ -21,7 +21,29 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Get collections by payment method
+    // Get ALL TIME totals for accurate available balance
+    const allTimeCollectionsResult = await db.execute({
+      sql: `SELECT COALESCE(SUM(amount), 0) as total FROM tenant_ledger WHERE type = 'payment'`,
+      args: [],
+    });
+
+    const allTimeExpensesResult = await db.execute({
+      sql: `SELECT COALESCE(SUM(amount), 0) as total FROM operator_expenses`,
+      args: [],
+    });
+
+    const allTimeWithdrawalsResult = await db.execute({
+      sql: `SELECT COALESCE(SUM(amount), 0) as total FROM admin_withdrawals`,
+      args: [],
+    });
+
+    // Calculate TRUE available balance (all time)
+    const allTimeCollections = Number(allTimeCollectionsResult.rows[0].total);
+    const allTimeExpenses = Number(allTimeExpensesResult.rows[0].total);
+    const allTimeWithdrawals = Number(allTimeWithdrawalsResult.rows[0].total);
+    const availableBalance = allTimeCollections - allTimeExpenses - allTimeWithdrawals;
+
+    // Get collections by payment method (for display, since last withdrawal)
     let collectionsQuery = `
       SELECT
         payment_method,
@@ -44,25 +66,25 @@ export async function GET(request: NextRequest) {
       args: collectionsArgs,
     });
 
-    // Get total collections
-    let totalCollectionsQuery = `
+    // Get total collections since last withdrawal (for display)
+    let totalCollectionsSinceQuery = `
       SELECT COALESCE(SUM(amount), 0) as total
       FROM tenant_ledger
       WHERE type = 'payment'
     `;
 
-    const totalCollectionsArgs: any[] = [];
+    const totalCollectionsSinceArgs: any[] = [];
     if (effectiveSinceDate) {
-      totalCollectionsQuery += " AND transaction_date > ?";
-      totalCollectionsArgs.push(effectiveSinceDate);
+      totalCollectionsSinceQuery += " AND transaction_date > ?";
+      totalCollectionsSinceArgs.push(effectiveSinceDate);
     }
 
-    const totalCollectionsResult = await db.execute({
-      sql: totalCollectionsQuery,
-      args: totalCollectionsArgs,
+    const totalCollectionsSinceResult = await db.execute({
+      sql: totalCollectionsSinceQuery,
+      args: totalCollectionsSinceArgs,
     });
 
-    // Get expenses by category
+    // Get expenses by category (since last withdrawal)
     let expensesQuery = `
       SELECT
         category,
@@ -84,26 +106,25 @@ export async function GET(request: NextRequest) {
       args: expensesArgs,
     });
 
-    // Get total expenses
-    let totalExpensesQuery = `
+    // Get total expenses since last withdrawal (for display)
+    let totalExpensesSinceQuery = `
       SELECT COALESCE(SUM(amount), 0) as total
       FROM operator_expenses
     `;
 
-    const totalExpensesArgs: any[] = [];
+    const totalExpensesSinceArgs: any[] = [];
     if (effectiveSinceDate) {
-      totalExpensesQuery += " WHERE expense_date > ?";
-      totalExpensesArgs.push(effectiveSinceDate);
+      totalExpensesSinceQuery += " WHERE expense_date > ?";
+      totalExpensesSinceArgs.push(effectiveSinceDate);
     }
 
-    const totalExpensesResult = await db.execute({
-      sql: totalExpensesQuery,
-      args: totalExpensesArgs,
+    const totalExpensesSinceResult = await db.execute({
+      sql: totalExpensesSinceQuery,
+      args: totalExpensesSinceArgs,
     });
 
-    const totalCollections = Number(totalCollectionsResult.rows[0].total);
-    const totalExpenses = Number(totalExpensesResult.rows[0].total);
-    const availableBalance = totalCollections - totalExpenses;
+    const totalCollectionsSince = Number(totalCollectionsSinceResult.rows[0].total);
+    const totalExpensesSince = Number(totalExpensesSinceResult.rows[0].total);
 
     // Format collections by method
     const collectionsByMethod = collectionsResult.rows.map((row: any) => ({
@@ -121,9 +142,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       sinceDate: effectiveSinceDate,
-      totalCollections,
-      totalExpenses,
-      availableBalance,
+      totalCollections: totalCollectionsSince, // Since last withdrawal (for display)
+      totalExpenses: totalExpensesSince, // Since last withdrawal (for display)
+      availableBalance, // TRUE balance = all collections - all expenses - all withdrawals
       collectionsByMethod,
       expensesByCategory,
     });

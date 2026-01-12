@@ -52,7 +52,7 @@ export function RecordExpenseForm({ trigger, onSuccess }: RecordExpenseFormProps
     amount: 0,
     category: "maintenance",
     description: "",
-    recordedBy: "",
+    recordedBy: "Operator", // Auto-populated default value
     date: format(new Date(), "yyyy-MM-dd"),
   });
 
@@ -80,7 +80,7 @@ export function RecordExpenseForm({ trigger, onSuccess }: RecordExpenseFormProps
         amount: 0,
         category: "maintenance",
         description: "",
-        recordedBy: "",
+        recordedBy: "Operator", // Auto-populated default value
         date: format(new Date(), "yyyy-MM-dd"),
       });
     } catch (error) {
@@ -167,7 +167,7 @@ export function RecordExpenseForm({ trigger, onSuccess }: RecordExpenseFormProps
 
             {/* Recorded By */}
             <div className="grid gap-2">
-              <Label htmlFor="recordedBy">Recorded By *</Label>
+              <Label htmlFor="recordedBy">Recorded By</Label>
               <Input
                 id="recordedBy"
                 type="text"
@@ -175,7 +175,6 @@ export function RecordExpenseForm({ trigger, onSuccess }: RecordExpenseFormProps
                 onChange={(e) => setFormData((prev) => ({ ...prev, recordedBy: e.target.value }))}
                 disabled={submitting}
                 placeholder="Operator name"
-                required
               />
             </div>
 
@@ -196,7 +195,7 @@ export function RecordExpenseForm({ trigger, onSuccess }: RecordExpenseFormProps
             <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={submitting}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!formData.amount || !formData.description || !formData.recordedBy || submitting}>
+            <Button type="submit" disabled={!formData.amount || !formData.description || submitting}>
               {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {submitting ? "Recording..." : "Record Expense"}
             </Button>
