@@ -82,17 +82,27 @@ export default function Home() {
         // Format tenants overview data
         const tenantsOverviewData: TenantOverview[] = tenants
           .filter((t: any) => t.is_active)
-          .map((tenant: any) => ({
-            id: tenant.id,
-            name: tenant.name,
-            rooms: tenant.rooms?.map((r: any) => r.code) || [],
-            monthlyRent: tenant.monthlyRent || 0,
-            lastPaidMonth: tenant.lastPaidMonth || "Never",
-            pendingMonths: 0, // Will be calculated based on dues/rent
-            totalDues: tenant.totalDues || 0,
-            securityDeposit: tenant.securityDeposit || 0,
-            creditBalance: tenant.creditBalance || 0,
-          }));
+          .map((tenant: any) => {
+            // Parse room codes from comma-separated string
+            const roomCodes = tenant.room_codes ? tenant.room_codes.split(',').filter(Boolean) : [];
+
+            // Calculate pending months based on dues and monthly rent
+            const monthlyRent = Number(tenant.monthly_rent || 0);
+            const totalDues = Number(tenant.total_dues || 0);
+            const pendingMonths = monthlyRent > 0 ? Math.floor(totalDues / monthlyRent) : 0;
+
+            return {
+              id: tenant.id,
+              name: tenant.name,
+              rooms: roomCodes,
+              monthlyRent,
+              lastPaidMonth: tenant.last_paid_month || "Never",
+              pendingMonths,
+              totalDues,
+              securityDeposit: Number(tenant.security_deposit_balance || 0),
+              creditBalance: Number(tenant.credit_balance || 0),
+            };
+          });
 
         setTenantsOverview(tenantsOverviewData);
       } catch (error) {
@@ -139,7 +149,7 @@ export default function Home() {
     });
 
     return result;
-  }, [search, sortField, sortDirection]);
+  }, [tenantsOverview, search, sortField, sortDirection]);
 
   const handleToggleColumn = (column: "securityDeposit" | "creditBalance") => {
     setShowOptionalColumns((prev) => ({

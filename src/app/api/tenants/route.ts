@@ -103,6 +103,7 @@ export async function GET() {
               t.*,
               COUNT(DISTINCT CASE WHEN tr.is_active = 1 THEN tr.id END) as active_rooms_count,
               GROUP_CONCAT(DISTINCT CASE WHEN tr.is_active = 1 THEN r.code END) as room_codes,
+              COALESCE(SUM(CASE WHEN tr.is_active = 1 THEN r.monthly_rent ELSE 0 END), 0) as monthly_rent,
               COALESCE(SUM(DISTINCT sd.amount *
                 CASE
                   WHEN sd.transaction_type = 'deposit' THEN 1
@@ -116,7 +117,13 @@ export async function GET() {
               ), 0) as total_credits,
               COALESCE((
                 SELECT SUM(rent_amount) FROM rent_payments WHERE tenant_id = t.id
-              ), 0) as total_rent_paid
+              ), 0) as total_rent_paid,
+              (
+                SELECT for_period FROM rent_payments
+                WHERE tenant_id = t.id
+                ORDER BY for_period DESC
+                LIMIT 1
+              ) as last_paid_period
             FROM tenants t
             LEFT JOIN tenant_rooms tr ON t.id = tr.tenant_id
             LEFT JOIN rooms r ON tr.room_id = r.id
@@ -127,8 +134,32 @@ export async function GET() {
       args: [],
     });
 
+    // Format the data with proper calculations
+    const tenants = result.rows.map((tenant: any) => {
+      const ledgerTotal = Number(tenant.total_credits || 0);
+      const paymentsTotal = Number(tenant.total_rent_paid || 0);
+      const balance = ledgerTotal - paymentsTotal;
+
+      // Format last paid period (YYYY-MM to MMM-YY)
+      let lastPaidMonth = "Never";
+      if (tenant.last_paid_period) {
+        const [year, month] = tenant.last_paid_period.split("-");
+        const date = new Date(parseInt(year), parseInt(month) - 1);
+        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        lastPaidMonth = `${monthNames[date.getMonth()]}-${year.substring(2)}`;
+      }
+
+      return {
+        ...tenant,
+        monthly_rent: Number(tenant.monthly_rent || 0),
+        credit_balance: balance > 0 ? balance : 0,
+        total_dues: balance < 0 ? Math.abs(balance) : 0,
+        last_paid_month: lastPaidMonth,
+      };
+    });
+
     return NextResponse.json({
-      tenants: result.rows,
+      tenants,
     });
   } catch (error) {
     console.error("Error fetching tenants:", error);
