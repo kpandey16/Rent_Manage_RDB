@@ -382,6 +382,12 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
                   required
                 />
               </div>
+              {selectedTenant && selectedTenant.creditBalance > 0 && formData.amount === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  <Info className="inline h-3 w-3 mr-1" />
+                  Using ₹0 will apply existing credit balance (₹{selectedTenant.creditBalance.toLocaleString("en-IN")}) to unpaid rent
+                </p>
+              )}
             </div>
 
             {/* Type */}
@@ -477,7 +483,7 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
             <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={submitting}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!formData.tenantId || !formData.amount || submitting}>
+            <Button type="submit" disabled={!formData.tenantId || formData.amount < 0 || submitting}>
               {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {submitting ? "Recording..." : "Record Payment"}
             </Button>
