@@ -22,9 +22,10 @@ interface Room {
   id: string;
   code: string;
   name: string | null;
-  monthly_rent: number;
-  move_in_date: string;
-  is_active: number;
+  currentRent: number;
+  expectedRent?: number;
+  moveInDate: string;
+  isActive: number;
 }
 
 interface Transaction {
@@ -215,10 +216,10 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
                     {room.code} {room.name && `- ${room.name}`}
                   </Link>
                   <p className="text-sm text-muted-foreground">
-                    Since {new Date(room.move_in_date).toLocaleDateString("en-IN")}
+                    Since {new Date(room.moveInDate).toLocaleDateString("en-IN")}
                   </p>
                 </div>
-                <Badge>₹{Number(room.monthly_rent).toLocaleString("en-IN")}/mo</Badge>
+                <Badge>₹{Number(room.currentRent).toLocaleString("en-IN")}/mo</Badge>
               </div>
             ))
           )}

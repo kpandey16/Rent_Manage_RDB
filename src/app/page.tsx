@@ -52,8 +52,8 @@ export default function Home() {
         const occupiedRooms = rooms.filter((r: any) => r.status === "occupied").length;
         const vacantRooms = rooms.filter((r: any) => r.status === "vacant").length;
         const activeTenants = tenants.filter((t: any) => t.is_active).length;
-        const defaultersCount = tenants.filter((t: any) => t.is_active && t.totalDues > 0).length;
-        const totalDues = tenants.reduce((sum: number, t: any) => sum + (t.totalDues || 0), 0);
+        const defaultersCount = tenants.filter((t: any) => t.is_active && (t.total_dues || 0) > 0).length;
+        const totalDues = tenants.reduce((sum: number, t: any) => sum + (t.total_dues || 0), 0);
 
         // Calculate this month's collection
         const currentDate = new Date();

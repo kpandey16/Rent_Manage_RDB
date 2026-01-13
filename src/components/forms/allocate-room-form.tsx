@@ -21,9 +21,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Info, Loader2 } from "lucide-react";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Plus, Info, Loader2, Check, ChevronsUpDown } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 interface Tenant {
   id: string;
@@ -61,6 +75,7 @@ export function AllocateRoomForm({
   preSelectedRoomId
 }: AllocateRoomFormProps) {
   const [open, setOpen] = useState(false);
+  const [tenantComboOpen, setTenantComboOpen] = useState(false);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(false);
@@ -174,29 +189,53 @@ export function AllocateRoomForm({
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="grid gap-4 py-4">
-            {/* Tenant Selection */}
+            {/* Tenant Selection with Search */}
             <div className="grid gap-2">
               <Label htmlFor="tenant">Tenant *</Label>
-              <Select
-                value={formData.tenantId}
-                onValueChange={(value) => setFormData((prev) => ({ ...prev, tenantId: value }))}
-                disabled={!!preSelectedTenantId || loading || submitting}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={loading ? "Loading..." : "Select tenant"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {tenants.length === 0 ? (
-                    <SelectItem value="none" disabled>No tenants found</SelectItem>
-                  ) : (
-                    tenants.map((tenant) => (
-                      <SelectItem key={tenant.id} value={tenant.id}>
-                        {tenant.name} {tenant.active_rooms_count > 0 && `(${tenant.active_rooms_count} room${tenant.active_rooms_count > 1 ? 's' : ''})`}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
+              <Popover open={tenantComboOpen} onOpenChange={setTenantComboOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={tenantComboOpen}
+                    className="w-full justify-between"
+                    disabled={!!preSelectedTenantId || loading || submitting}
+                  >
+                    {formData.tenantId
+                      ? tenants.find((tenant) => tenant.id === formData.tenantId)?.name
+                      : loading ? "Loading..." : "Select tenant..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-full p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search tenant..." />
+                    <CommandList>
+                      <CommandEmpty>No tenant found.</CommandEmpty>
+                      <CommandGroup>
+                        {tenants.map((tenant) => (
+                          <CommandItem
+                            key={tenant.id}
+                            value={tenant.name}
+                            onSelect={() => {
+                              setFormData((prev) => ({ ...prev, tenantId: tenant.id }));
+                              setTenantComboOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                formData.tenantId === tenant.id ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {tenant.name} {tenant.active_rooms_count > 0 && `(${tenant.active_rooms_count} room${tenant.active_rooms_count > 1 ? 's' : ''})`}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
 
             {/* Room Selection */}

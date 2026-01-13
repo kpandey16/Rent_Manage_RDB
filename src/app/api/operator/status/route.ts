@@ -7,17 +7,17 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const sinceDate = searchParams.get("sinceDate"); // Optional: filter since last withdrawal
 
-    // If no sinceDate provided, use the date of the last withdrawal
-    let effectiveSinceDate = sinceDate;
+    // If no sinceDate provided, use the timestamp of the last withdrawal
+    let effectiveSinceTimestamp = sinceDate;
 
-    if (!effectiveSinceDate) {
+    if (!effectiveSinceTimestamp) {
       const lastWithdrawal = await db.execute({
-        sql: `SELECT withdrawal_date FROM admin_withdrawals ORDER BY withdrawal_date DESC, created_at DESC LIMIT 1`,
+        sql: `SELECT created_at FROM admin_withdrawals ORDER BY created_at DESC LIMIT 1`,
         args: [],
       });
 
       if (lastWithdrawal.rows.length > 0) {
-        effectiveSinceDate = lastWithdrawal.rows[0].withdrawal_date as string;
+        effectiveSinceTimestamp = lastWithdrawal.rows[0].created_at as string;
       }
     }
 
@@ -54,9 +54,9 @@ export async function GET(request: NextRequest) {
     `;
 
     const collectionsArgs: any[] = [];
-    if (effectiveSinceDate) {
-      collectionsQuery += " AND transaction_date > ?";
-      collectionsArgs.push(effectiveSinceDate);
+    if (effectiveSinceTimestamp) {
+      collectionsQuery += " AND created_at > ?";
+      collectionsArgs.push(effectiveSinceTimestamp);
     }
 
     collectionsQuery += " GROUP BY payment_method";
@@ -74,9 +74,9 @@ export async function GET(request: NextRequest) {
     `;
 
     const totalCollectionsSinceArgs: any[] = [];
-    if (effectiveSinceDate) {
-      totalCollectionsSinceQuery += " AND transaction_date > ?";
-      totalCollectionsSinceArgs.push(effectiveSinceDate);
+    if (effectiveSinceTimestamp) {
+      totalCollectionsSinceQuery += " AND created_at > ?";
+      totalCollectionsSinceArgs.push(effectiveSinceTimestamp);
     }
 
     const totalCollectionsSinceResult = await db.execute({
@@ -94,9 +94,9 @@ export async function GET(request: NextRequest) {
     `;
 
     const expensesArgs: any[] = [];
-    if (effectiveSinceDate) {
-      expensesQuery += " WHERE expense_date > ?";
-      expensesArgs.push(effectiveSinceDate);
+    if (effectiveSinceTimestamp) {
+      expensesQuery += " WHERE created_at > ?";
+      expensesArgs.push(effectiveSinceTimestamp);
     }
 
     expensesQuery += " GROUP BY category";
@@ -113,9 +113,9 @@ export async function GET(request: NextRequest) {
     `;
 
     const totalExpensesSinceArgs: any[] = [];
-    if (effectiveSinceDate) {
-      totalExpensesSinceQuery += " WHERE expense_date > ?";
-      totalExpensesSinceArgs.push(effectiveSinceDate);
+    if (effectiveSinceTimestamp) {
+      totalExpensesSinceQuery += " WHERE created_at > ?";
+      totalExpensesSinceArgs.push(effectiveSinceTimestamp);
     }
 
     const totalExpensesSinceResult = await db.execute({
@@ -125,6 +125,25 @@ export async function GET(request: NextRequest) {
 
     const totalCollectionsSince = Number(totalCollectionsSinceResult.rows[0].total);
     const totalExpensesSince = Number(totalExpensesSinceResult.rows[0].total);
+
+    // Get total withdrawals since timestamp (for display)
+    let totalWithdrawalsSinceQuery = `
+      SELECT COALESCE(SUM(amount), 0) as total
+      FROM admin_withdrawals
+    `;
+
+    const totalWithdrawalsSinceArgs: any[] = [];
+    if (effectiveSinceTimestamp) {
+      totalWithdrawalsSinceQuery += " WHERE created_at > ?";
+      totalWithdrawalsSinceArgs.push(effectiveSinceTimestamp);
+    }
+
+    const totalWithdrawalsSinceResult = await db.execute({
+      sql: totalWithdrawalsSinceQuery,
+      args: totalWithdrawalsSinceArgs,
+    });
+
+    const totalWithdrawalsSince = Number(totalWithdrawalsSinceResult.rows[0].total);
 
     // Format collections by method
     const collectionsByMethod = collectionsResult.rows.map((row: any) => ({
@@ -141,9 +160,10 @@ export async function GET(request: NextRequest) {
     }));
 
     return NextResponse.json({
-      sinceDate: effectiveSinceDate,
-      totalCollections: totalCollectionsSince, // Since last withdrawal (for display)
-      totalExpenses: totalExpensesSince, // Since last withdrawal (for display)
+      sinceDate: effectiveSinceTimestamp, // Now a timestamp, not just a date
+      totalCollections: totalCollectionsSince, // Since specified timestamp (for display)
+      totalExpenses: totalExpensesSince, // Since specified timestamp (for display)
+      totalWithdrawals: totalWithdrawalsSince, // Since specified timestamp (for display)
       availableBalance, // TRUE balance = all collections - all expenses - all withdrawals
       collectionsByMethod,
       expensesByCategory,

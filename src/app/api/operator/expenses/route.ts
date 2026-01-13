@@ -21,11 +21,11 @@ export async function GET(request: NextRequest) {
 
     const args: any[] = [];
     if (sinceDate) {
-      sql += " WHERE expense_date >= ?";
+      sql += " WHERE created_at > ?";
       args.push(sinceDate);
     }
 
-    sql += " ORDER BY expense_date DESC, created_at DESC";
+    sql += " ORDER BY created_at DESC";
 
     const result = await db.execute({ sql, args });
 

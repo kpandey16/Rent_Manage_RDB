@@ -15,6 +15,7 @@ interface CashStatus {
   sinceDate: string | null;
   totalCollections: number;
   totalExpenses: number;
+  totalWithdrawals: number;
   availableBalance: number;
   collectionsByMethod: Array<{ method: string; count: number; total: number }>;
   expensesByCategory: Array<{ category: string; count: number; total: number }>;
@@ -219,7 +220,7 @@ export default function CashManagementPage() {
 
         <TabsContent value="dashboard" className="space-y-4">
           {/* Summary Cards */}
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Collections</CardTitle>
@@ -252,6 +253,21 @@ export default function CashManagementPage() {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Withdrawals</CardTitle>
+                <TrendingDown className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-red-600">
+                  ₹{status?.totalWithdrawals?.toLocaleString("en-IN") || "0"}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {status?.sinceDate ? `Since ${formatDate(status.sinceDate)}` : "All time"}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Available Balance</CardTitle>
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
@@ -259,7 +275,7 @@ export default function CashManagementPage() {
                 <div className="text-2xl font-bold text-blue-600">
                   ₹{status?.availableBalance.toLocaleString("en-IN") || "0"}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">Collections - Expenses</p>
+                <p className="text-xs text-muted-foreground mt-1">Net cash with operator</p>
               </CardContent>
             </Card>
           </div>
