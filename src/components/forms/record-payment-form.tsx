@@ -416,7 +416,7 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
                   </SelectGroup>
                   <SelectGroup>
                     <SelectLabel>Adjustments</SelectLabel>
-                    {/* Removed broken "Credit Applied" option */}
+                    <SelectItem value="credit">Apply Credit to Rent</SelectItem>
                     <SelectItem value="discount">Discount</SelectItem>
                     <SelectItem value="maintenance">Maintenance Adjustment</SelectItem>
                   </SelectGroup>
