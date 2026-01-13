@@ -54,7 +54,11 @@ export async function POST(request: NextRequest) {
         return await handleDepositUsedForRent(tenantId, amount, transactionDate, notes, now);
 
       case "credit":
-        return await handleCreditApplied(tenantId, amount, transactionDate, notes, now);
+        return NextResponse.json(
+          { error: "This feature is disabled. Record a payment instead to automatically apply credits to rent." },
+          { status: 400 }
+        );
+        // return await handleCreditApplied(tenantId, amount, transactionDate, notes, now);
 
       case "discount":
         return await handleDiscount(tenantId, amount, transactionDate, notes, now);
@@ -386,16 +390,40 @@ async function handleCreditApplied(
   notes: string | undefined,
   now: string
 ) {
+  // FIRST: Check existing credit balance BEFORE doing anything
+  const existingCreditResult = await db.execute({
+    sql: `SELECT
+            COALESCE(SUM(tl.amount), 0) as ledger_total,
+            COALESCE((SELECT SUM(rent_amount) FROM rent_payments WHERE tenant_id = ?), 0) as payments_total
+          FROM tenant_ledger tl
+          WHERE tl.tenant_id = ?`,
+    args: [tenantId, tenantId],
+  });
+
+  const ledgerTotal = Number(existingCreditResult.rows[0].ledger_total);
+  const paymentsTotal = Number(existingCreditResult.rows[0].payments_total);
+  const existingCredit = ledgerTotal - paymentsTotal;
+
+  // Validation: Must have positive credit balance
+  if (existingCredit <= 0) {
+    return NextResponse.json(
+      { error: "No credit balance available to apply" },
+      { status: 400 }
+    );
+  }
+
+  if (amount > existingCredit) {
+    return NextResponse.json(
+      {
+        error: `Insufficient credit. Available: ₹${existingCredit.toLocaleString("en-IN")}, Requested: ₹${amount.toLocaleString("en-IN")}`
+      },
+      { status: 400 }
+    );
+  }
+
   const ledgerId = generateId();
   let remainingAmount = amount;
   const appliedPeriods: string[] = [];
-
-  // Create NEGATIVE ledger entry to reduce credit balance
-  await db.execute({
-    sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, amount, description, created_at)
-          VALUES (?, ?, ?, 'credit', ?, ?, ?)`,
-    args: [ledgerId, tenantId, transactionDate, -amount, notes || "Credit applied to rent", now],
-  });
 
   // Get tenant's room allocations to find earliest move-in date
   const roomsResult = await db.execute({

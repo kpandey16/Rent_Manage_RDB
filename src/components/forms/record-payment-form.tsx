@@ -69,7 +69,8 @@ const paymentTypes = [
   { value: "security_deposit_add", label: "Security Deposit - Add/Increase", category: "deposit" },
   { value: "security_deposit_withdraw", label: "Security Deposit - Withdraw/Decrease", category: "deposit" },
   { value: "deposit_used", label: "Security Deposit Used (for dues)", category: "adjustment" },
-  { value: "credit", label: "Credit Applied", category: "adjustment" },
+  // Removed broken "Credit Applied" option - credits are automatically applied when recording payments
+  // { value: "credit", label: "Credit Applied", category: "adjustment" },
   { value: "discount", label: "Discount", category: "adjustment" },
   { value: "maintenance", label: "Maintenance Adjustment", category: "adjustment" },
 ];
@@ -407,7 +408,7 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
                   </SelectGroup>
                   <SelectGroup>
                     <SelectLabel>Adjustments</SelectLabel>
-                    <SelectItem value="credit">Credit Applied</SelectItem>
+                    {/* Removed broken "Credit Applied" option */}
                     <SelectItem value="discount">Discount</SelectItem>
                     <SelectItem value="maintenance">Maintenance Adjustment</SelectItem>
                   </SelectGroup>
