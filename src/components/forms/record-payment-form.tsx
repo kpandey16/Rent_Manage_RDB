@@ -69,8 +69,7 @@ const paymentTypes = [
   { value: "security_deposit_add", label: "Security Deposit - Add/Increase", category: "deposit" },
   { value: "security_deposit_withdraw", label: "Security Deposit - Withdraw/Decrease", category: "deposit" },
   { value: "deposit_used", label: "Security Deposit Used (for dues)", category: "adjustment" },
-  // Removed broken "Credit Applied" option - credits are automatically applied when recording payments
-  // { value: "credit", label: "Credit Applied", category: "adjustment" },
+  { value: "credit", label: "Apply Credit to Rent", category: "adjustment" },
   { value: "discount", label: "Discount", category: "adjustment" },
   { value: "maintenance", label: "Maintenance Adjustment", category: "adjustment" },
 ];
@@ -374,19 +373,22 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
                   type="number"
                   min="0"
                   step="1"
-                  value={formData.amount || ""}
+                  value={formData.type === "credit" ? "" : (formData.amount || "")}
                   onChange={(e) => setFormData((prev) => ({ ...prev, amount: Number(e.target.value) }))}
                   className="pl-7"
-                  placeholder="0"
-                  disabled={submitting}
-                  required
+                  placeholder={formData.type === "credit" ? "Uses existing credit" : "0"}
+                  disabled={submitting || formData.type === "credit"}
+                  required={formData.type !== "credit"}
                 />
               </div>
-              {selectedTenant && selectedTenant.creditBalance > 0 && formData.amount === 0 && (
-                <p className="text-xs text-muted-foreground">
-                  <Info className="inline h-3 w-3 mr-1" />
-                  Using ₹0 will apply existing credit balance (₹{selectedTenant.creditBalance.toLocaleString("en-IN")}) to unpaid rent
-                </p>
+              {formData.type === "credit" && selectedTenant && (
+                <Alert>
+                  <AlertDescription>
+                    <Info className="inline h-4 w-4 mr-1" />
+                    This will apply existing credit balance (₹{selectedTenant.creditBalance.toLocaleString("en-IN")}) to unpaid rent periods.
+                    {selectedTenant.creditBalance === 0 && " No credit available to apply."}
+                  </AlertDescription>
+                </Alert>
               )}
             </div>
 
@@ -483,7 +485,7 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
             <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={submitting}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!formData.tenantId || formData.amount < 0 || submitting}>
+            <Button type="submit" disabled={!formData.tenantId || (formData.type !== "credit" && !formData.amount) || submitting}>
               {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {submitting ? "Recording..." : "Record Payment"}
             </Button>

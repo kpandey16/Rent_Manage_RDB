@@ -54,11 +54,7 @@ export async function POST(request: NextRequest) {
         return await handleDepositUsedForRent(tenantId, amount, transactionDate, notes, now);
 
       case "credit":
-        return NextResponse.json(
-          { error: "This feature is disabled. Record a payment instead to automatically apply credits to rent." },
-          { status: 400 }
-        );
-        // return await handleCreditApplied(tenantId, amount, transactionDate, notes, now);
+        return await handleCreditApplied(tenantId, amount, transactionDate, notes, now);
 
       case "discount":
         return await handleDiscount(tenantId, amount, transactionDate, notes, now);
@@ -412,17 +408,29 @@ async function handleCreditApplied(
     );
   }
 
-  if (amount > existingCredit) {
+  // If no amount specified (or 0), use all existing credit
+  const amountToApply = !amount || amount === 0 ? existingCredit : amount;
+
+  if (amountToApply > existingCredit) {
     return NextResponse.json(
       {
-        error: `Insufficient credit. Available: ₹${existingCredit.toLocaleString("en-IN")}, Requested: ₹${amount.toLocaleString("en-IN")}`
+        error: `Insufficient credit. Available: ₹${existingCredit.toLocaleString("en-IN")}, Requested: ₹${amountToApply.toLocaleString("en-IN")}`
       },
       { status: 400 }
     );
   }
 
   const ledgerId = generateId();
-  let remainingAmount = amount;
+
+  // Create a ₹0 ledger entry as a marker for credit application
+  // This doesn't add or remove credit, just marks when credit was manually applied to rent
+  await db.execute({
+    sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, amount, description, created_at)
+          VALUES (?, ?, ?, 'credit', 0, ?, ?)`,
+    args: [ledgerId, tenantId, transactionDate, notes || "Credit applied to rent", now],
+  });
+
+  let remainingAmount = amountToApply;
   const appliedPeriods: string[] = [];
 
   // Get tenant's room allocations to find earliest move-in date
@@ -505,6 +513,7 @@ async function handleCreditApplied(
   }
 
   // Build response message
+  const creditUsed = amountToApply - remainingAmount;
   let message = "Credit applied successfully";
   if (appliedPeriods.length > 0) {
     // Format periods as range
@@ -512,12 +521,15 @@ async function handleCreditApplied(
     const lastPeriod = appliedPeriods[appliedPeriods.length - 1];
 
     if (appliedPeriods.length === 1) {
-      message += `. Applied to: ${formatPeriod(firstPeriod)}`;
+      message += `. Applied ₹${creditUsed.toLocaleString("en-IN")} to: ${formatPeriod(firstPeriod)}`;
     } else {
-      message += `. Applied to: ${formatPeriod(firstPeriod)} to ${formatPeriod(lastPeriod)}`;
+      message += `. Applied ₹${creditUsed.toLocaleString("en-IN")} to: ${formatPeriod(firstPeriod)} to ${formatPeriod(lastPeriod)}`;
+    }
+    if (remainingAmount > 0) {
+      message += `. Remaining credit: ₹${remainingAmount.toLocaleString("en-IN")}`;
     }
   } else {
-    message += `. Insufficient credit to pay full month rent (₹${amount.toLocaleString("en-IN")} available)`;
+    message += `. Insufficient credit to pay full month rent`;
   }
 
   return NextResponse.json(
