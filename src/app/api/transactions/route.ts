@@ -614,8 +614,8 @@ export async function GET(request: NextRequest) {
     // For each transaction, fetch applied rent periods and calculate TOTAL credit balance at that time
     const transactionsWithDetails = await Promise.all(
       result.rows.map(async (transaction: any) => {
-        if (transaction.type === 'payment' || transaction.type === 'credit') {
-          // Get rent periods this payment/credit was applied to
+        if (transaction.type === 'payment' || transaction.type === 'credit' || transaction.type === 'maintenance') {
+          // Get rent periods this payment/credit/maintenance was applied to
           const rentPayments = await db.execute({
             sql: `SELECT for_period, rent_amount
                   FROM rent_payments
@@ -658,7 +658,9 @@ export async function GET(request: NextRequest) {
             appliedPeriods,
             appliedTo: appliedPeriods.length > 0
               ? appliedPeriods.map(p => `${formatPeriod(p.period as string)} (₹${p.amount})`).join(', ')
-              : transaction.type === 'credit' ? 'Credit Adjustment' : 'Credit Balance',
+              : transaction.type === 'credit' ? 'Credit Adjustment'
+              : transaction.type === 'maintenance' ? 'Maintenance Credit'
+              : 'Credit Balance',
             creditRemaining: cumulativeCreditBalance,
           };
         }
