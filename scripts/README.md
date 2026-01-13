@@ -2,13 +2,34 @@
 
 This directory contains utility scripts for database management.
 
-## Clear Database Script
+## Clear Database Scripts
 
 **Purpose:** Deletes all data from the database while preserving the schema and app settings.
 
 **Use case:** Starting with a fresh database for testing without having to recreate the schema.
 
-### Usage
+### Option 1: SQL File (Recommended for Direct Execution)
+
+**File:** `clear-data.sql`
+
+Run this SQL file directly against your Turso database:
+
+```bash
+# Using turso CLI
+turso db shell <your-database-name> < scripts/clear-data.sql
+
+# Or copy-paste the SQL commands directly into the Turso web console
+```
+
+**What it does:**
+- Deletes all data from tables in the correct order
+- Shows verification query at the end with row counts
+- Preserves app_settings by default
+- Simple, no dependencies required
+
+### Option 2: Node.js Script (Interactive with Confirmation)
+
+**File:** `clear-database.js`
 
 Run the script using npm:
 
