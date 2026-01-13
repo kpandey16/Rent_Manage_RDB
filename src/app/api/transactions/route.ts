@@ -9,14 +9,15 @@ export async function POST(request: NextRequest) {
     const { tenantId, amount, type, method, date, notes } = body;
 
     // Validation
-    if (!tenantId || !amount || !type || !date) {
+    if (!tenantId || amount === undefined || amount === null || !type || !date) {
       return NextResponse.json(
         { error: "Tenant ID, amount, type, and date are required" },
         { status: 400 }
       );
     }
 
-    if (amount <= 0) {
+    // Amount validation - allow 0 for credit type, require > 0 for others
+    if (type !== "credit" && amount <= 0) {
       return NextResponse.json(
         { error: "Amount must be greater than zero" },
         { status: 400 }
