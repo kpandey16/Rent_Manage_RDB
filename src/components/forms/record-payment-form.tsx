@@ -67,12 +67,8 @@ interface Tenant {
 
 const paymentTypes = [
   { value: "payment", label: "Payment", category: "income" },
-  { value: "security_deposit_add", label: "Security Deposit - Add/Increase", category: "deposit" },
-  { value: "security_deposit_withdraw", label: "Security Deposit - Withdraw/Decrease", category: "deposit" },
-  { value: "deposit_used", label: "Security Deposit Used (for dues)", category: "adjustment" },
   { value: "credit", label: "Apply Credit to Rent", category: "adjustment" },
-  { value: "discount", label: "Discount", category: "adjustment" },
-  { value: "maintenance", label: "Maintenance Adjustment", category: "adjustment" },
+  { value: "adjustment", label: "Adjustment (Discount/Maintenance/Other)", category: "adjustment" },
 ];
 
 const paymentMethods = [
@@ -94,7 +90,7 @@ export interface PaymentFormData {
   method: string;
   date: string;
   notes: string;
-  // Adjustments
+  // Adjustments (kept as separate fields for UX, backend converts to single type)
   discount?: number;
   maintenanceDeduction?: number;
   otherAdjustment?: number;
@@ -578,35 +574,24 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectGroup>
-                    <SelectLabel>Payment</SelectLabel>
-                    <SelectItem value="payment">Payment</SelectItem>
-                  </SelectGroup>
-                  <SelectGroup>
-                    <SelectLabel>Security Deposit</SelectLabel>
-                    <SelectItem value="security_deposit_add">Add / Increase Deposit</SelectItem>
-                    <SelectItem value="security_deposit_withdraw">Withdraw / Decrease Deposit</SelectItem>
-                    <SelectItem value="deposit_used">Use Deposit for Dues</SelectItem>
-                  </SelectGroup>
-                  <SelectGroup>
-                    <SelectLabel>Adjustments</SelectLabel>
-                    <SelectItem value="credit">Apply Credit to Rent</SelectItem>
-                    <SelectItem value="discount">Discount</SelectItem>
-                    <SelectItem value="maintenance">Maintenance Adjustment</SelectItem>
-                  </SelectGroup>
+                  {paymentTypes.map((type) => (
+                    <SelectItem key={type.value} value={type.value}>
+                      {type.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+              {formData.type === "payment" && selectedTenant && (
+                <p className="text-xs text-muted-foreground">
+                  Tip: Use "Adjustments" section below for discounts or deductions
+                </p>
+              )}
+              {formData.type === "adjustment" && (
+                <p className="text-xs text-muted-foreground">
+                  For payment with adjustments, use "Payment" type and expand "Adjustments" section
+                </p>
+              )}
             </div>
-
-            {/* Security Deposit Info */}
-            {selectedTenant && (formData.type === "security_deposit_add" || formData.type === "security_deposit_withdraw" || formData.type === "deposit_used") && (
-              <Alert>
-                <Info className="h-4 w-4" />
-                <AlertDescription>
-                  Current security deposit: <span className="font-semibold">₹{selectedTenant.securityDeposit.toLocaleString("en-IN")}</span>
-                </AlertDescription>
-              </Alert>
-            )}
 
             {/* Method */}
             <div className="grid gap-2">

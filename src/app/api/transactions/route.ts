@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     const now = getCurrentDateTime();
     const transactionDate = date || now.split(' ')[0];
 
-    // Handle different transaction types
+    // Handle different transaction types (3 core types only)
     switch (type) {
       case "payment":
         return await handlePayment(
@@ -56,27 +56,15 @@ export async function POST(request: NextRequest) {
           autoApplyToRent !== false // default true
         );
 
-      case "security_deposit_add":
-        return await handleSecurityDepositAdd(tenantId, amount, transactionDate, notes, now);
-
-      case "security_deposit_withdraw":
-        return await handleSecurityDepositWithdraw(tenantId, amount, transactionDate, notes, now);
-
-      case "deposit_used":
-        return await handleDepositUsedForRent(tenantId, amount, transactionDate, notes, now);
-
       case "credit":
         return await handleCreditApplied(tenantId, amount, transactionDate, notes, now);
 
-      case "discount":
-        return await handleDiscount(tenantId, amount, transactionDate, notes, now);
-
-      case "maintenance":
-        return await handleMaintenance(tenantId, amount, transactionDate, notes, now);
+      case "adjustment":
+        return await handleAdjustment(tenantId, amount, transactionDate, notes, now);
 
       default:
         return NextResponse.json(
-          { error: "Invalid transaction type" },
+          { error: "Invalid transaction type. Use: payment, credit, or adjustment" },
           { status: 400 }
         );
     }
@@ -121,13 +109,13 @@ async function handlePayment(
   const paymentsTotal = Number(existingCreditResult.rows[0].payments_total);
   const existingCredit = ledgerTotal - paymentsTotal;
 
-  // ATOMIC BUNDLE: Create all adjustment entries first
+  // ATOMIC BUNDLE: Create all adjustment entries first (all use 'adjustment' type with category tags)
   if (discount > 0) {
     const discountId = generateId();
     await db.execute({
       sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, amount, payment_method, description, created_at)
-            VALUES (?, ?, ?, 'discount', ?, NULL, ?, ?)`,
-      args: [discountId, tenantId, transactionDate, discount, notes ? `Discount - ${notes}` : "Discount applied", now],
+            VALUES (?, ?, ?, 'adjustment', ?, NULL, ?, ?)`,
+      args: [discountId, tenantId, transactionDate, discount, notes ? `[Discount] ${notes}` : "[Discount] Discount applied", now],
     });
     adjustmentIds.push(discountId);
   }
@@ -136,8 +124,8 @@ async function handlePayment(
     const maintenanceId = generateId();
     await db.execute({
       sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, amount, payment_method, description, created_at)
-            VALUES (?, ?, ?, 'maintenance', ?, NULL, ?, ?)`,
-      args: [maintenanceId, tenantId, transactionDate, maintenanceDeduction, notes ? `Maintenance deduction - ${notes}` : "Maintenance expense deduction", now],
+            VALUES (?, ?, ?, 'adjustment', ?, NULL, ?, ?)`,
+      args: [maintenanceId, tenantId, transactionDate, maintenanceDeduction, notes ? `[Maintenance] ${notes}` : "[Maintenance] Maintenance expense deduction", now],
     });
     adjustmentIds.push(maintenanceId);
   }
@@ -147,7 +135,7 @@ async function handlePayment(
     await db.execute({
       sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, amount, payment_method, description, created_at)
             VALUES (?, ?, ?, 'adjustment', ?, NULL, ?, ?)`,
-      args: [otherId, tenantId, transactionDate, otherAdjustment, notes ? `Adjustment - ${notes}` : "Other adjustment", now],
+      args: [otherId, tenantId, transactionDate, otherAdjustment, notes ? `[Other] ${notes}` : "[Other] Other adjustment", now],
     });
     adjustmentIds.push(otherId);
   }
@@ -631,8 +619,8 @@ async function handleCreditApplied(
   );
 }
 
-// Handle discount
-async function handleDiscount(
+// Handle adjustment (unified: discount, maintenance, other)
+async function handleAdjustment(
   tenantId: string,
   amount: number,
   transactionDate: string,
@@ -641,40 +629,19 @@ async function handleDiscount(
 ) {
   const ledgerId = generateId();
 
+  // Parse category from notes if present (e.g., "[Discount] Description")
+  const categoryMatch = notes?.match(/^\[(Discount|Maintenance|Other)\]/);
+  const category = categoryMatch ? categoryMatch[1] : "Adjustment";
+
   await db.execute({
     sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, amount, description, created_at)
-          VALUES (?, ?, ?, 'discount', ?, ?, ?)`,
-    args: [ledgerId, tenantId, transactionDate, amount, notes || "Discount applied", now],
+          VALUES (?, ?, ?, 'adjustment', ?, ?, ?)`,
+    args: [ledgerId, tenantId, transactionDate, amount, notes || `[${category}] Adjustment applied`, now],
   });
 
   return NextResponse.json(
     {
-      message: "Discount applied successfully",
-      transactionId: ledgerId,
-    },
-    { status: 201 }
-  );
-}
-
-// Handle maintenance adjustment
-async function handleMaintenance(
-  tenantId: string,
-  amount: number,
-  transactionDate: string,
-  notes: string | undefined,
-  now: string
-) {
-  const ledgerId = generateId();
-
-  await db.execute({
-    sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, amount, description, created_at)
-          VALUES (?, ?, ?, 'maintenance', ?, ?, ?)`,
-    args: [ledgerId, tenantId, transactionDate, amount, notes || "Maintenance adjustment", now],
-  });
-
-  return NextResponse.json(
-    {
-      message: "Maintenance adjustment recorded successfully",
+      message: `${category} recorded successfully`,
       transactionId: ledgerId,
     },
     { status: 201 }
@@ -715,8 +682,8 @@ export async function GET(request: NextRequest) {
     // For each transaction, fetch applied rent periods and calculate TOTAL credit balance at that time
     const transactionsWithDetails = await Promise.all(
       result.rows.map(async (transaction: any) => {
-        // All ledger entry types that contribute to credit balance
-        const creditTypes = ['payment', 'credit', 'maintenance', 'discount', 'adjustment', 'deposit_used'];
+        // All ledger entry types that contribute to credit balance (3 core types)
+        const creditTypes = ['payment', 'credit', 'adjustment'];
 
         if (creditTypes.includes(transaction.type)) {
           // Get rent periods this ledger entry was applied to
@@ -762,15 +729,12 @@ export async function GET(request: NextRequest) {
           if (appliedPeriods.length > 0) {
             appliedToMessage = appliedPeriods.map(p => `${formatPeriod(p.period as string)} (₹${p.amount})`).join(', ');
           } else if (transaction.type === 'credit') {
-            appliedToMessage = 'Credit Adjustment';
-          } else if (transaction.type === 'maintenance') {
-            appliedToMessage = 'Maintenance Credit';
-          } else if (transaction.type === 'discount') {
-            appliedToMessage = 'Discount Applied';
+            appliedToMessage = 'Credit Applied to Rent';
           } else if (transaction.type === 'adjustment') {
-            appliedToMessage = 'Adjustment Applied';
-          } else if (transaction.type === 'deposit_used') {
-            appliedToMessage = 'Deposit Used for Rent';
+            // Parse category from description (e.g., "[Discount] Description")
+            const categoryMatch = transaction.description?.match(/^\[(Discount|Maintenance|Other)\]/);
+            const category = categoryMatch ? categoryMatch[1] : "Adjustment";
+            appliedToMessage = `${category} Applied`;
           }
 
           return {
@@ -780,13 +744,11 @@ export async function GET(request: NextRequest) {
             creditRemaining: cumulativeCreditBalance,
           };
         }
+        // Handle security deposit and other non-credit transactions
         return {
           ...transaction,
           appliedPeriods: [],
-          appliedTo: transaction.type === 'deposit' ? 'Security Deposit' :
-                     transaction.type === 'security_deposit_add' ? 'Security Deposit Added' :
-                     transaction.type === 'security_deposit_withdraw' ? 'Security Deposit Withdrawn' :
-                     'Other',
+          appliedTo: 'Other Transaction',
           creditRemaining: null,
         };
       })
