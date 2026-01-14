@@ -24,7 +24,9 @@ interface Tenant {
   name: string;
   phone: string;
   rooms: string[];
-  balance: number;
+  monthlyRent: number;
+  dues: number;
+  creditBalance: number;
   isActive: boolean;
 }
 
@@ -42,14 +44,22 @@ export default function TenantsPage() {
       const data = await response.json();
 
       // Transform API data to match UI format
-      const transformedTenants = data.tenants.map((t: any) => ({
-        id: t.id,
-        name: t.name,
-        phone: t.phone,
-        rooms: t.room_codes ? t.room_codes.split(',').filter(Boolean) : [],
-        balance: Number(t.total_credits || 0) - Number(t.total_rent_paid || 0),
-        isActive: t.is_active === 1,
-      }));
+      // Filter out tenants without active room allocation
+      const transformedTenants = data.tenants
+        .filter((t: any) => {
+          const rooms = t.room_codes ? t.room_codes.split(',').filter(Boolean) : [];
+          return rooms.length > 0; // Only show tenants with allocated rooms
+        })
+        .map((t: any) => ({
+          id: t.id,
+          name: t.name,
+          phone: t.phone,
+          rooms: t.room_codes.split(',').filter(Boolean),
+          monthlyRent: Number(t.monthly_rent || 0),
+          dues: Number(t.total_dues || 0),
+          creditBalance: Number(t.credit_balance || 0),
+          isActive: t.is_active === 1,
+        }));
 
       setTenants(transformedTenants);
     } catch (error) {
@@ -86,9 +96,9 @@ export default function TenantsPage() {
         case "name-desc":
           return b.name.localeCompare(a.name);
         case "balance-asc":
-          return a.balance - b.balance;
+          return a.dues - b.dues;
         case "balance-desc":
-          return b.balance - a.balance;
+          return b.dues - a.dues;
         case "rooms-asc":
           return a.rooms.length - b.rooms.length;
         case "rooms-desc":
@@ -170,14 +180,22 @@ export default function TenantsPage() {
                           </div>
                         )}
                       </div>
+                      <div className="text-xs text-muted-foreground">
+                        Monthly Rent: ₹{tenant.monthlyRent.toLocaleString("en-IN")}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge
-                        variant={tenant.balance < 0 ? "destructive" : tenant.balance > 0 ? "default" : "secondary"}
-                      >
-                        {tenant.balance < 0 ? `-₹${Math.abs(tenant.balance).toLocaleString("en-IN")}` :
-                         tenant.balance > 0 ? `+₹${tenant.balance.toLocaleString("en-IN")}` : "Settled"}
-                      </Badge>
+                      {tenant.dues > 0 ? (
+                        <Badge variant="destructive">
+                          Dues: ₹{tenant.dues.toLocaleString("en-IN")}
+                        </Badge>
+                      ) : tenant.creditBalance > 0 ? (
+                        <Badge variant="default">
+                          Credit: ₹{tenant.creditBalance.toLocaleString("en-IN")}
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary">Settled</Badge>
+                      )}
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     </div>
                   </div>
