@@ -146,6 +146,9 @@ export default function ReportsPage() {
                 <div className="flex items-center gap-3 text-sm text-muted-foreground">
                   <span className="text-green-600">+₹{month.collection.toLocaleString("en-IN")}</span>
                   <span className="text-orange-600">-₹{month.withdrawals.toLocaleString("en-IN")}</span>
+                  <span className={`font-medium ${month.rate >= 90 ? 'text-green-600' : month.rate >= 70 ? 'text-yellow-600' : 'text-destructive'}`}>
+                    ({month.rate}% collected)
+                  </span>
                 </div>
               </div>
               <Badge variant={month.rate >= 90 ? "default" : month.rate >= 70 ? "secondary" : "destructive"}>

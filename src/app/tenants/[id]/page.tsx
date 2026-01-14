@@ -262,8 +262,11 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
                         </p>
                       )}
                       {transaction.creditRemaining !== null && transaction.creditRemaining !== undefined && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {transaction.creditRemaining > 0 ? 'Remaining credit' : transaction.creditRemaining < 0 ? 'Remaining dues' : 'Fully applied'}: {transaction.creditRemaining !== 0 && `₹${Math.abs(transaction.creditRemaining).toLocaleString("en-IN")}`}
+                        <p className="text-xs mt-1">
+                          <span className="text-muted-foreground">Credit Balance: </span>
+                          <span className={`font-medium ${transaction.creditRemaining >= 0 ? 'text-green-600' : 'text-destructive'}`}>
+                            {transaction.creditRemaining >= 0 ? '+' : '-'}₹{Math.abs(transaction.creditRemaining).toLocaleString("en-IN")}
+                          </span>
                         </p>
                       )}
                       {transaction.description && (
@@ -286,6 +289,7 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
                       <TableHead>Type</TableHead>
                       <TableHead>Method</TableHead>
                       <TableHead>Applied To</TableHead>
+                      <TableHead>Credit Balance</TableHead>
                       <TableHead>Notes</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -304,15 +308,16 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
                           </TableCell>
                           <TableCell>{transaction.payment_method || "-"}</TableCell>
                           <TableCell className="text-sm text-muted-foreground">
-                            <div>
-                              {transaction.appliedTo && <div>{transaction.appliedTo}</div>}
-                              {transaction.creditRemaining !== null && transaction.creditRemaining !== undefined && (
-                                <div className="text-xs mt-1">
-                                  {transaction.creditRemaining > 0 ? 'Credit: ' : transaction.creditRemaining < 0 ? 'Dues: ' : 'Fully applied'}
-                                  {transaction.creditRemaining !== 0 && `₹${Math.abs(transaction.creditRemaining).toLocaleString("en-IN")}`}
-                                </div>
-                              )}
-                            </div>
+                            {transaction.appliedTo || "-"}
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {transaction.creditRemaining !== null && transaction.creditRemaining !== undefined ? (
+                              <span className={transaction.creditRemaining >= 0 ? 'text-green-600 font-medium' : 'text-destructive font-medium'}>
+                                {transaction.creditRemaining >= 0 ? '+' : '-'}₹{Math.abs(transaction.creditRemaining).toLocaleString("en-IN")}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
                             {transaction.description || "-"}
