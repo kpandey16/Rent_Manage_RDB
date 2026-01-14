@@ -9,35 +9,64 @@ export async function GET() {
     const currentMonth = now.getMonth() + 1; // 1-12
     const currentPeriod = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
 
-    // Calculate defaulters (tenants with unpaid rent)
-    // Get all tenants with rent periods and payments
-    const defaultersQuery = await db.execute({
+    // Calculate defaulters - simplified approach
+    // Get all active tenants and their unpaid rent periods
+    const tenantsQuery = await db.execute({
       sql: `SELECT
               t.id,
               t.name,
-              COUNT(DISTINCT periods.period) - COUNT(DISTINCT rp.for_period) as unpaid_months
+              tr.move_in_date
             FROM tenants t
-            CROSS JOIN (
-              SELECT '2025-11' as period UNION SELECT '2025-12' UNION
-              SELECT '2026-01' UNION SELECT '2026-02' UNION
-              SELECT '2026-03' UNION SELECT '2026-04'
-            ) periods
-            LEFT JOIN tenant_rooms tr ON t.id = tr.tenant_id
-            LEFT JOIN rent_payments rp ON t.id = rp.tenant_id AND rp.for_period = periods.period
-            WHERE t.is_active = 1
-              AND tr.is_active = 1
-              AND periods.period <= ?
-              AND periods.period >= DATE(tr.move_in_date, 'start of month')
-            GROUP BY t.id, t.name
-            HAVING unpaid_months > 0`,
-      args: [currentPeriod],
+            JOIN tenant_rooms tr ON t.id = tr.tenant_id
+            WHERE t.is_active = 1 AND tr.is_active = 1`,
+      args: [],
     });
 
-    const defaultersData = {
-      twoMonths: defaultersQuery.rows.filter((r: any) => r.unpaid_months >= 2 && r.unpaid_months < 3).length,
-      threeMonths: defaultersQuery.rows.filter((r: any) => r.unpaid_months >= 3 && r.unpaid_months < 4).length,
-      fourPlusMonths: defaultersQuery.rows.filter((r: any) => r.unpaid_months >= 4).length,
-    };
+    // For each tenant, count unpaid months
+    const defaulters = { twoMonths: 0, threeMonths: 0, fourPlusMonths: 0 };
+
+    for (const tenant of tenantsQuery.rows) {
+      const paidPeriodsQuery = await db.execute({
+        sql: `SELECT for_period FROM rent_payments WHERE tenant_id = ?`,
+        args: [tenant.id],
+      });
+
+      const paidPeriods = new Set(paidPeriodsQuery.rows.map((r: any) => r.for_period));
+
+      // Calculate expected periods from move-in to current month
+      const moveInDate = new Date(tenant.move_in_date as string);
+      const moveInYear = moveInDate.getFullYear();
+      const moveInMonth = moveInDate.getMonth() + 1;
+
+      let unpaidCount = 0;
+      let year = moveInYear;
+      let month = moveInMonth;
+
+      // Count unpaid months up to current month
+      while (year < currentYear || (year === currentYear && month <= currentMonth)) {
+        const period = `${year}-${String(month).padStart(2, '0')}`;
+        if (!paidPeriods.has(period)) {
+          unpaidCount++;
+        }
+
+        month++;
+        if (month > 12) {
+          month = 1;
+          year++;
+        }
+      }
+
+      // Categorize tenant
+      if (unpaidCount >= 4) {
+        defaulters.fourPlusMonths++;
+      } else if (unpaidCount === 3) {
+        defaulters.threeMonths++;
+      } else if (unpaidCount === 2) {
+        defaulters.twoMonths++;
+      }
+    }
+
+    const defaultersData = defaulters;
 
     // Get current month data
     const currentMonthStart = `${currentYear}-${String(currentMonth).padStart(2, '0')}-01`;

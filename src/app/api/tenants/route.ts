@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, generateId, getCurrentDateTime } from "@/lib/db";
+import { calculateTotalRentOwed } from "@/lib/rent-calculator";
 
 // POST /api/tenants - Create a new tenant
 export async function POST(request: NextRequest) {
@@ -137,28 +138,33 @@ export async function GET() {
     });
 
     // Format the data with proper calculations
-    const tenants = result.rows.map((tenant: any) => {
-      const ledgerTotal = Number(tenant.total_credits || 0);
-      const paymentsTotal = Number(tenant.total_rent_paid || 0);
-      const balance = ledgerTotal - paymentsTotal;
+    const tenants = await Promise.all(
+      result.rows.map(async (tenant: any) => {
+        const ledgerTotal = Number(tenant.total_credits || 0);
+        const paymentsTotal = Number(tenant.total_rent_paid || 0);
+        const balance = ledgerTotal - paymentsTotal;
 
-      // Format last paid period (YYYY-MM to MMM-YY)
-      let lastPaidMonth = "Never";
-      if (tenant.last_paid_period) {
-        const [year, month] = tenant.last_paid_period.split("-");
-        const date = new Date(parseInt(year), parseInt(month) - 1);
-        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-        lastPaidMonth = `${monthNames[date.getMonth()]}-${year.substring(2)}`;
-      }
+        // Calculate total rent owed using proper calculation
+        const totalRentOwed = await calculateTotalRentOwed(tenant.id, db);
 
-      return {
-        ...tenant,
-        monthly_rent: Number(tenant.monthly_rent || 0),
-        credit_balance: balance > 0 ? balance : 0,
-        total_dues: balance < 0 ? Math.abs(balance) : 0,
-        last_paid_month: lastPaidMonth,
-      };
-    });
+        // Format last paid period (YYYY-MM to MMM-YY)
+        let lastPaidMonth = "Never";
+        if (tenant.last_paid_period) {
+          const [year, month] = tenant.last_paid_period.split("-");
+          const date = new Date(parseInt(year), parseInt(month) - 1);
+          const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+          lastPaidMonth = `${monthNames[date.getMonth()]}-${year.substring(2)}`;
+        }
+
+        return {
+          ...tenant,
+          monthly_rent: Number(tenant.monthly_rent || 0),
+          credit_balance: balance > 0 ? balance : 0,
+          total_dues: Math.max(0, totalRentOwed - ledgerTotal),
+          last_paid_month: lastPaidMonth,
+        };
+      })
+    );
 
     return NextResponse.json({
       tenants,
