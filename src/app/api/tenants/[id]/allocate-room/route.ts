@@ -19,6 +19,13 @@ export async function POST(
       );
     }
 
+    // Convert month format (YYYY-MM) to full date (YYYY-MM-01)
+    // If already a full date, keep it as is
+    const moveInDate = allocationDate.length === 7 ? `${allocationDate}-01` : allocationDate;
+    const effectiveDate = rentEffectiveDate
+      ? (rentEffectiveDate.length === 7 ? `${rentEffectiveDate}-01` : rentEffectiveDate)
+      : moveInDate;
+
     // Check if tenant exists and is active
     const tenant = await db.execute({
       sql: "SELECT id, name, is_active FROM tenants WHERE id = ?",
@@ -79,7 +86,7 @@ export async function POST(
     await db.execute({
       sql: `INSERT INTO tenant_rooms (id, tenant_id, room_id, move_in_date, is_active, created_at, updated_at)
             VALUES (?, ?, ?, ?, 1, ?, ?)`,
-      args: [allocationId, tenantId, roomId, allocationDate, now, now],
+      args: [allocationId, tenantId, roomId, moveInDate, now, now],
     });
 
     // Update room status to occupied
@@ -88,10 +95,9 @@ export async function POST(
       args: [now, roomId],
     });
 
-    // If rent effective date is provided and different from allocation date,
+    // If rent effective date is provided and different from move-in date,
     // create a rent update record
-    const effectiveDate = rentEffectiveDate || allocationDate;
-    if (effectiveDate !== allocationDate || rentEffectiveDate) {
+    if (effectiveDate !== moveInDate || rentEffectiveDate) {
       const rentUpdateId = generateId();
       await db.execute({
         sql: `INSERT INTO rent_updates (id, room_id, old_rent, new_rent, effective_from, created_at)

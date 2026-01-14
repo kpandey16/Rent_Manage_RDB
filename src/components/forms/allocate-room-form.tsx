@@ -83,8 +83,8 @@ export function AllocateRoomForm({
   const [formData, setFormData] = useState<RoomAllocationFormData>({
     tenantId: preSelectedTenantId || "",
     roomId: preSelectedRoomId || "",
-    allocationDate: format(new Date(), "yyyy-MM-dd"),
-    rentEffectiveDate: format(new Date(), "yyyy-MM-dd"),
+    allocationDate: format(new Date(), "yyyy-MM"),
+    rentEffectiveDate: format(new Date(), "yyyy-MM"),
     notes: "",
   });
 
@@ -149,8 +149,8 @@ export function AllocateRoomForm({
       setFormData({
         tenantId: preSelectedTenantId || "",
         roomId: preSelectedRoomId || "",
-        allocationDate: format(new Date(), "yyyy-MM-dd"),
-        rentEffectiveDate: format(new Date(), "yyyy-MM-dd"),
+        allocationDate: format(new Date(), "yyyy-MM"),
+        rentEffectiveDate: format(new Date(), "yyyy-MM"),
         notes: "",
       });
     } catch (error) {
@@ -278,33 +278,33 @@ export function AllocateRoomForm({
 
             {/* Allocation Date */}
             <div className="grid gap-2">
-              <Label htmlFor="allocationDate">Allocation Date (Move-in Date) *</Label>
+              <Label htmlFor="allocationDate">Allocation Month (Move-in Month) *</Label>
               <Input
                 id="allocationDate"
-                type="date"
+                type="month"
                 value={formData.allocationDate}
                 onChange={(e) => handleAllocationDateChange(e.target.value)}
                 disabled={submitting}
                 required
               />
               <p className="text-xs text-muted-foreground">
-                The date when the tenant moves into the room
+                The month when the tenant moves in (rent starts from 1st)
               </p>
             </div>
 
             {/* Rent Effective Date */}
             <div className="grid gap-2">
-              <Label htmlFor="rentEffectiveDate">Rent Effective Date *</Label>
+              <Label htmlFor="rentEffectiveDate">Rent Effective Month *</Label>
               <Input
                 id="rentEffectiveDate"
-                type="date"
+                type="month"
                 value={formData.rentEffectiveDate}
                 onChange={(e) => setFormData((prev) => ({ ...prev, rentEffectiveDate: e.target.value }))}
                 disabled={submitting}
                 required
               />
               <p className="text-xs text-muted-foreground">
-                The date from which rent will be applicable
+                The month from which rent will be applicable (starts from 1st)
               </p>
             </div>
 
