@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { format } from "date-fns";
 import {
   Dialog,
@@ -22,18 +22,23 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { LogOut, AlertTriangle, CheckCircle, Info } from "lucide-react";
+import { LogOut, AlertTriangle, CheckCircle, Info, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
-// Placeholder data - will come from DB
-const tenants = [
-  { id: "1", name: "Amit Sharma", rooms: [{ id: "R1", code: "R1", rent: 5000 }], totalDues: 0, securityDeposit: 10000 },
-  { id: "2", name: "Priya Singh", rooms: [{ id: "R2", code: "R2", rent: 4500 }, { id: "R4", code: "R4", rent: 4500 }], totalDues: 0, securityDeposit: 18000 },
-  { id: "3", name: "Ramesh Kumar", rooms: [{ id: "R3", code: "R3", rent: 5500 }], totalDues: 11000, securityDeposit: 11000 },
-  { id: "4", name: "Sunita Devi", rooms: [{ id: "R5", code: "R5", rent: 5000 }], totalDues: 0, securityDeposit: 10000 },
-  { id: "5", name: "Suresh Patel", rooms: [{ id: "R7", code: "R7", rent: 5000 }], totalDues: 5000, securityDeposit: 10000 },
-  { id: "6", name: "Meera Joshi", rooms: [{ id: "R8", code: "R8", rent: 4000 }], totalDues: 12000, securityDeposit: 8000 },
-  { id: "7", name: "Vikram Rao", rooms: [{ id: "R9", code: "R9", rent: 4000 }, { id: "R10", code: "R10", rent: 4000 }], totalDues: 32000, securityDeposit: 16000 },
-];
+interface Room {
+  id: string;
+  code: string;
+  currentRent: number;
+}
+
+interface Tenant {
+  id: string;
+  name: string;
+  rooms: Room[];
+  totalDues: number;
+  creditBalance: number;
+  securityDeposit: number;
+}
 
 interface VacateRoomFormProps {
   trigger?: React.ReactNode;
@@ -51,6 +56,9 @@ export interface VacateFormData {
 
 export function VacateRoomForm({ trigger, onSubmit }: VacateRoomFormProps) {
   const [open, setOpen] = useState(false);
+  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState<VacateFormData>({
     tenantId: "",
     roomId: "",
@@ -59,6 +67,67 @@ export function VacateRoomForm({ trigger, onSubmit }: VacateRoomFormProps) {
     refundAmount: 0,
     notes: "",
   });
+
+  // Fetch tenants when dialog opens
+  useEffect(() => {
+    if (open) {
+      fetchTenants();
+      // Reset form
+      setFormData({
+        tenantId: "",
+        roomId: "",
+        vacateDate: format(new Date(), "yyyy-MM-dd"),
+        refundDeposit: false,
+        refundAmount: 0,
+        notes: "",
+      });
+    }
+  }, [open]);
+
+  const fetchTenants = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch("/api/tenants");
+      if (!response.ok) throw new Error("Failed to fetch tenants");
+      const data = await response.json();
+
+      // Transform API data to match form format
+      const transformedTenants = data.tenants
+        .filter((t: any) => {
+          // Only show active tenants with allocated rooms
+          const rooms = t.room_codes ? t.room_codes.split(',').filter(Boolean) : [];
+          return t.is_active === 1 && rooms.length > 0;
+        })
+        .map((t: any) => {
+          // Parse room data
+          const roomCodes = t.room_codes ? t.room_codes.split(',') : [];
+          const roomIds = t.room_ids ? t.room_ids.split(',') : [];
+          const roomRents = t.room_rents ? t.room_rents.split(',').map(Number) : [];
+
+          const rooms = roomCodes.map((code: string, index: number) => ({
+            id: roomIds[index] || '',
+            code: code,
+            currentRent: roomRents[index] || 0,
+          }));
+
+          return {
+            id: t.id,
+            name: t.name,
+            rooms,
+            totalDues: Number(t.total_dues || 0),
+            creditBalance: Number(t.credit_balance || 0),
+            securityDeposit: Number(t.security_deposit_balance || 0),
+          };
+        });
+
+      setTenants(transformedTenants);
+    } catch (error) {
+      console.error("Error fetching tenants:", error);
+      toast.error("Failed to load tenants");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const selectedTenant = tenants.find((t) => t.id === formData.tenantId);
   const selectedRoom = selectedTenant?.rooms.find((r) => r.id === formData.roomId);
@@ -93,21 +162,38 @@ export function VacateRoomForm({ trigger, onSubmit }: VacateRoomFormProps) {
     return { allowed: true, reason: "single_room_no_dues" };
   }, [selectedTenant, selectedRoom]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!vacateValidation.allowed) return;
 
-    onSubmit?.(formData);
-    setOpen(false);
-    // Reset form
-    setFormData({
-      tenantId: "",
-      roomId: "",
-      vacateDate: format(new Date(), "yyyy-MM-dd"),
-      refundDeposit: false,
-      refundAmount: 0,
-      notes: "",
-    });
+    try {
+      setSubmitting(true);
+      const response = await fetch(`/api/tenants/${formData.tenantId}/vacate-room`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          roomId: formData.roomId,
+          vacateDate: formData.vacateDate,
+          refundAmount: formData.refundAmount,
+          notes: formData.notes,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to vacate room");
+      }
+
+      const data = await response.json();
+      toast.success(data.message || "Room vacated successfully");
+      onSubmit?.(formData);
+      setOpen(false);
+    } catch (error) {
+      console.error("Error vacating room:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to vacate room");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleTenantChange = (tenantId: string) => {
@@ -144,16 +230,23 @@ export function VacateRoomForm({ trigger, onSubmit }: VacateRoomFormProps) {
               <Select
                 value={formData.tenantId}
                 onValueChange={handleTenantChange}
+                disabled={loading}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select tenant" />
+                  <SelectValue placeholder={loading ? "Loading tenants..." : "Select tenant"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {tenants.map((tenant) => (
-                    <SelectItem key={tenant.id} value={tenant.id}>
-                      {tenant.name} ({tenant.rooms.length} room{tenant.rooms.length > 1 ? "s" : ""})
-                    </SelectItem>
-                  ))}
+                  {tenants.length === 0 ? (
+                    <div className="p-2 text-sm text-muted-foreground text-center">
+                      {loading ? "Loading..." : "No tenants with allocated rooms"}
+                    </div>
+                  ) : (
+                    tenants.map((tenant) => (
+                      <SelectItem key={tenant.id} value={tenant.id}>
+                        {tenant.name} ({tenant.rooms.length} room{tenant.rooms.length > 1 ? "s" : ""})
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -172,7 +265,7 @@ export function VacateRoomForm({ trigger, onSubmit }: VacateRoomFormProps) {
                   <SelectContent>
                     {selectedTenant.rooms.map((room) => (
                       <SelectItem key={room.id} value={room.id}>
-                        {room.code} - ₹{room.rent.toLocaleString("en-IN")}/mo
+                        {room.code} - ₹{room.currentRent.toLocaleString("en-IN")}/mo
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -279,15 +372,16 @@ export function VacateRoomForm({ trigger, onSubmit }: VacateRoomFormProps) {
             )}
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={submitting}>
               Cancel
             </Button>
             <Button
               type="submit"
-              disabled={!vacateValidation.allowed || !formData.tenantId || !formData.roomId}
+              disabled={!vacateValidation.allowed || !formData.tenantId || !formData.roomId || submitting}
               variant={vacateValidation.allowed ? "default" : "secondary"}
             >
-              {vacateValidation.allowed ? "Confirm Vacate" : "Cannot Vacate"}
+              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {submitting ? "Processing..." : vacateValidation.allowed ? "Confirm Vacate" : "Cannot Vacate"}
             </Button>
           </DialogFooter>
         </form>

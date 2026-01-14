@@ -103,6 +103,8 @@ export async function GET() {
               t.*,
               COUNT(DISTINCT CASE WHEN tr.is_active = 1 THEN tr.id END) as active_rooms_count,
               GROUP_CONCAT(DISTINCT CASE WHEN tr.is_active = 1 THEN r.code END) as room_codes,
+              GROUP_CONCAT(DISTINCT CASE WHEN tr.is_active = 1 THEN r.id END) as room_ids,
+              GROUP_CONCAT(DISTINCT CASE WHEN tr.is_active = 1 THEN r.monthly_rent END) as room_rents,
               COALESCE(SUM(CASE WHEN tr.is_active = 1 THEN r.monthly_rent ELSE 0 END), 0) as monthly_rent,
               COALESCE(SUM(DISTINCT sd.amount *
                 CASE
