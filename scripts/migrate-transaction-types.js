@@ -36,16 +36,15 @@ async function migrateTransactionTypes() {
 
     console.log(`📊 Found ${discounts.rows.length} discount transactions to migrate`);
 
-    // Update discount transactions
+    // Update discount transactions to adjustment type with subtype='discount'
     for (const row of discounts.rows) {
-      const currentDesc = row.description || 'Discount applied';
-      const newDesc = currentDesc.startsWith('[Discount]')
-        ? currentDesc
-        : `[Discount] ${currentDesc}`;
+      // Clean description - remove [Discount] tag if present
+      let cleanDesc = (row.description || 'Discount applied').toString();
+      cleanDesc = cleanDesc.replace(/^\[Discount\]\s*/, '');
 
       await db.execute({
-        sql: `UPDATE tenant_ledger SET type = 'adjustment', description = ? WHERE id = ?`,
-        args: [newDesc, row.id],
+        sql: `UPDATE tenant_ledger SET type = 'adjustment', subtype = 'discount', description = ? WHERE id = ?`,
+        args: [cleanDesc, row.id],
       });
     }
 
@@ -57,23 +56,23 @@ async function migrateTransactionTypes() {
 
     console.log(`📊 Found ${maintenance.rows.length} maintenance transactions to migrate`);
 
-    // Update maintenance transactions
+    // Update maintenance transactions to adjustment type with subtype='maintenance'
     for (const row of maintenance.rows) {
-      const currentDesc = row.description || 'Maintenance adjustment';
-      const newDesc = currentDesc.startsWith('[Maintenance]')
-        ? currentDesc
-        : `[Maintenance] ${currentDesc}`;
+      // Clean description - remove [Maintenance] tag if present
+      let cleanDesc = (row.description || 'Maintenance adjustment').toString();
+      cleanDesc = cleanDesc.replace(/^\[Maintenance\]\s*/, '');
 
       await db.execute({
-        sql: `UPDATE tenant_ledger SET type = 'adjustment', description = ? WHERE id = ?`,
-        args: [newDesc, row.id],
+        sql: `UPDATE tenant_ledger SET type = 'adjustment', subtype = 'maintenance', description = ? WHERE id = ?`,
+        args: [cleanDesc, row.id],
       });
     }
 
     console.log('\n✅ Migration completed successfully!');
-    console.log(`   - ${discounts.rows.length} discount → adjustment`);
-    console.log(`   - ${maintenance.rows.length} maintenance → adjustment`);
+    console.log(`   - ${discounts.rows.length} discount → adjustment (subtype='discount')`);
+    console.log(`   - ${maintenance.rows.length} maintenance → adjustment (subtype='maintenance')`);
     console.log('\n📝 All transactions now use 3 core types: payment, credit, adjustment');
+    console.log('📝 Adjustments use subtype column for categorization');
 
   } catch (error) {
     console.error('❌ Migration failed:', error);

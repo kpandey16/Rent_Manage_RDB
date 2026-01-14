@@ -109,13 +109,13 @@ async function handlePayment(
   const paymentsTotal = Number(existingCreditResult.rows[0].payments_total);
   const existingCredit = ledgerTotal - paymentsTotal;
 
-  // ATOMIC BUNDLE: Create all adjustment entries first (all use 'adjustment' type with category tags)
+  // ATOMIC BUNDLE: Create all adjustment entries first (all use 'adjustment' type with subtype)
   if (discount > 0) {
     const discountId = generateId();
     await db.execute({
-      sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, amount, payment_method, description, created_at)
-            VALUES (?, ?, ?, 'adjustment', ?, NULL, ?, ?)`,
-      args: [discountId, tenantId, transactionDate, discount, notes ? `[Discount] ${notes}` : "[Discount] Discount applied", now],
+      sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, subtype, amount, payment_method, description, created_at)
+            VALUES (?, ?, ?, 'adjustment', 'discount', ?, NULL, ?, ?)`,
+      args: [discountId, tenantId, transactionDate, discount, notes || "Discount applied", now],
     });
     adjustmentIds.push(discountId);
   }
@@ -123,9 +123,9 @@ async function handlePayment(
   if (maintenanceDeduction > 0) {
     const maintenanceId = generateId();
     await db.execute({
-      sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, amount, payment_method, description, created_at)
-            VALUES (?, ?, ?, 'adjustment', ?, NULL, ?, ?)`,
-      args: [maintenanceId, tenantId, transactionDate, maintenanceDeduction, notes ? `[Maintenance] ${notes}` : "[Maintenance] Maintenance expense deduction", now],
+      sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, subtype, amount, payment_method, description, created_at)
+            VALUES (?, ?, ?, 'adjustment', 'maintenance', ?, NULL, ?, ?)`,
+      args: [maintenanceId, tenantId, transactionDate, maintenanceDeduction, notes || "Maintenance expense deduction", now],
     });
     adjustmentIds.push(maintenanceId);
   }
@@ -133,9 +133,9 @@ async function handlePayment(
   if (otherAdjustment > 0) {
     const otherId = generateId();
     await db.execute({
-      sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, amount, payment_method, description, created_at)
-            VALUES (?, ?, ?, 'adjustment', ?, NULL, ?, ?)`,
-      args: [otherId, tenantId, transactionDate, otherAdjustment, notes ? `[Other] ${notes}` : "[Other] Other adjustment", now],
+      sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, subtype, amount, payment_method, description, created_at)
+            VALUES (?, ?, ?, 'adjustment', 'other', ?, NULL, ?, ?)`,
+      args: [otherId, tenantId, transactionDate, otherAdjustment, notes || "Other adjustment", now],
     });
     adjustmentIds.push(otherId);
   }
@@ -625,23 +625,22 @@ async function handleAdjustment(
   amount: number,
   transactionDate: string,
   notes: string | undefined,
-  now: string
+  now: string,
+  subtype: string = 'other'
 ) {
   const ledgerId = generateId();
 
-  // Parse category from notes if present (e.g., "[Discount] Description")
-  const categoryMatch = notes?.match(/^\[(Discount|Maintenance|Other)\]/);
-  const category = categoryMatch ? categoryMatch[1] : "Adjustment";
-
   await db.execute({
-    sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, amount, description, created_at)
-          VALUES (?, ?, ?, 'adjustment', ?, ?, ?)`,
-    args: [ledgerId, tenantId, transactionDate, amount, notes || `[${category}] Adjustment applied`, now],
+    sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, subtype, amount, description, created_at)
+          VALUES (?, ?, ?, 'adjustment', ?, ?, ?, ?)`,
+    args: [ledgerId, tenantId, transactionDate, subtype, amount, notes || "Adjustment applied", now],
   });
+
+  const categoryLabel = subtype.charAt(0).toUpperCase() + subtype.slice(1);
 
   return NextResponse.json(
     {
-      message: `${category} recorded successfully`,
+      message: `${categoryLabel} recorded successfully`,
       transactionId: ledgerId,
     },
     { status: 201 }
@@ -661,6 +660,7 @@ export async function GET(request: NextRequest) {
         t.name as tenant_name,
         tl.transaction_date,
         tl.type,
+        tl.subtype,
         tl.amount,
         tl.payment_method,
         tl.description,
@@ -724,17 +724,18 @@ export async function GET(request: NextRequest) {
           const rentTotal = Number(rentUpToTransaction.rows[0].total);
           const cumulativeCreditBalance = ledgerTotal - rentTotal;
 
-          // Set appropriate appliedTo message based on type
+          // Set appropriate appliedTo message based on type and subtype
           let appliedToMessage = 'Credit Balance';
           if (appliedPeriods.length > 0) {
             appliedToMessage = appliedPeriods.map(p => `${formatPeriod(p.period as string)} (₹${p.amount})`).join(', ');
           } else if (transaction.type === 'credit') {
             appliedToMessage = 'Credit Applied to Rent';
           } else if (transaction.type === 'adjustment') {
-            // Parse category from description (e.g., "[Discount] Description")
-            const categoryMatch = transaction.description?.match(/^\[(Discount|Maintenance|Other)\]/);
-            const category = categoryMatch ? categoryMatch[1] : "Adjustment";
-            appliedToMessage = `${category} Applied`;
+            // Use subtype for clean category display
+            const subtypeLabel = transaction.subtype
+              ? transaction.subtype.charAt(0).toUpperCase() + transaction.subtype.slice(1)
+              : 'Adjustment';
+            appliedToMessage = `${subtypeLabel} Applied`;
           }
 
           return {
