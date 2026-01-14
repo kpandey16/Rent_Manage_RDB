@@ -115,6 +115,16 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
   useEffect(() => {
     if (open) {
       fetchTenants();
+      // Reset form when dialog opens
+      setFormData({
+        tenantId: "",
+        amount: 0,
+        type: "payment",
+        method: "cash",
+        date: format(new Date(), "yyyy-MM-dd"),
+        notes: "",
+      });
+      setSelectedTenant(null);
     }
   }, [open]);
 

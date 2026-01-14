@@ -266,6 +266,11 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
                           {transaction.creditRemaining > 0 ? 'Remaining credit' : transaction.creditRemaining < 0 ? 'Remaining dues' : 'Fully applied'}: {transaction.creditRemaining !== 0 && `₹${Math.abs(transaction.creditRemaining).toLocaleString("en-IN")}`}
                         </p>
                       )}
+                      {transaction.description && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Note: {transaction.description}
+                        </p>
+                      )}
                     </div>
                   );
                 })}
@@ -281,6 +286,7 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
                       <TableHead>Type</TableHead>
                       <TableHead>Method</TableHead>
                       <TableHead>Applied To</TableHead>
+                      <TableHead>Notes</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -307,6 +313,9 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
                                 </div>
                               )}
                             </div>
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {transaction.description || "-"}
                           </TableCell>
                         </TableRow>
                       );
