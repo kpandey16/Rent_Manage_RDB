@@ -715,8 +715,11 @@ export async function GET(request: NextRequest) {
     // For each transaction, fetch applied rent periods and calculate TOTAL credit balance at that time
     const transactionsWithDetails = await Promise.all(
       result.rows.map(async (transaction: any) => {
-        if (transaction.type === 'payment' || transaction.type === 'credit' || transaction.type === 'maintenance') {
-          // Get rent periods this payment/credit/maintenance was applied to
+        // All ledger entry types that contribute to credit balance
+        const creditTypes = ['payment', 'credit', 'maintenance', 'discount', 'adjustment', 'deposit_used'];
+
+        if (creditTypes.includes(transaction.type)) {
+          // Get rent periods this ledger entry was applied to
           const rentPayments = await db.execute({
             sql: `SELECT for_period, rent_amount
                   FROM rent_payments
@@ -754,21 +757,36 @@ export async function GET(request: NextRequest) {
           const rentTotal = Number(rentUpToTransaction.rows[0].total);
           const cumulativeCreditBalance = ledgerTotal - rentTotal;
 
+          // Set appropriate appliedTo message based on type
+          let appliedToMessage = 'Credit Balance';
+          if (appliedPeriods.length > 0) {
+            appliedToMessage = appliedPeriods.map(p => `${formatPeriod(p.period as string)} (₹${p.amount})`).join(', ');
+          } else if (transaction.type === 'credit') {
+            appliedToMessage = 'Credit Adjustment';
+          } else if (transaction.type === 'maintenance') {
+            appliedToMessage = 'Maintenance Credit';
+          } else if (transaction.type === 'discount') {
+            appliedToMessage = 'Discount Applied';
+          } else if (transaction.type === 'adjustment') {
+            appliedToMessage = 'Adjustment Applied';
+          } else if (transaction.type === 'deposit_used') {
+            appliedToMessage = 'Deposit Used for Rent';
+          }
+
           return {
             ...transaction,
             appliedPeriods,
-            appliedTo: appliedPeriods.length > 0
-              ? appliedPeriods.map(p => `${formatPeriod(p.period as string)} (₹${p.amount})`).join(', ')
-              : transaction.type === 'credit' ? 'Credit Adjustment'
-              : transaction.type === 'maintenance' ? 'Maintenance Credit'
-              : 'Credit Balance',
+            appliedTo: appliedToMessage,
             creditRemaining: cumulativeCreditBalance,
           };
         }
         return {
           ...transaction,
           appliedPeriods: [],
-          appliedTo: transaction.type === 'deposit' ? 'Security Deposit' : 'Other',
+          appliedTo: transaction.type === 'deposit' ? 'Security Deposit' :
+                     transaction.type === 'security_deposit_add' ? 'Security Deposit Added' :
+                     transaction.type === 'security_deposit_withdraw' ? 'Security Deposit Withdrawn' :
+                     'Other',
           creditRemaining: null,
         };
       })
