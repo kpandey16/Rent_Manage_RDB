@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, Bell, Home, Users, DoorOpen, CreditCard, BarChart3 } from "lucide-react";
+import { Menu, Bell, Home, Users, DoorOpen, CreditCard, BarChart3, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -18,6 +18,7 @@ const navItems = [
   { href: "/tenants", icon: Users, label: "Tenants" },
   { href: "/rooms", icon: DoorOpen, label: "Rooms" },
   { href: "/payments", icon: CreditCard, label: "Payments" },
+  { href: "/cash-management", icon: Wallet, label: "Cash" },
   { href: "/reports", icon: BarChart3, label: "Reports" },
 ];
 

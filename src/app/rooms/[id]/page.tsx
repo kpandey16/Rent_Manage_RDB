@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from "react";
+import { use, useState, useEffect } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -14,38 +14,99 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, User, IndianRupee, Calendar, History, Edit } from "lucide-react";
+import { ArrowLeft, User, IndianRupee, Calendar, History, Edit, Loader2 } from "lucide-react";
 import { AllocateRoomForm } from "@/components/forms/allocate-room-form";
+import { UpdateRentForm } from "@/components/forms/update-rent-form";
+import { toast } from "sonner";
 
-// Placeholder data - will be fetched from DB based on ID
-const roomData = {
-  id: "1",
-  code: "R1",
-  name: "Ground Floor - Front",
-  currentRent: 5000,
-  status: "occupied",
-  currentTenant: {
-    id: "1",
-    name: "Amit Sharma",
-    allocatedFrom: "2024-03-15",
-  },
-  rentHistory: [
-    { effectiveFrom: "2024-09-01", rent: 5000, updatedBy: "Admin" },
-    { effectiveFrom: "2024-03-15", rent: 4500, updatedBy: "Admin" },
-    { effectiveFrom: "2023-01-01", rent: 4000, updatedBy: "System" },
-  ],
-  pastTenants: [
-    { id: "old1", name: "Ravi Verma", from: "2023-01-01", to: "2024-03-10", duration: "14 months" },
-    { id: "old2", name: "Sanjay Gupta", from: "2021-06-15", to: "2022-12-20", duration: "18 months" },
-    { id: "old3", name: "Anjali Mehta", from: "2019-08-01", to: "2021-05-31", duration: "22 months" },
-  ],
-};
+interface CurrentTenant {
+  id: string;
+  name: string;
+  allocated_from: string;
+}
+
+interface RentHistory {
+  effective_from: string;
+  new_rent: number;
+  created_by: string | null;
+}
+
+interface PastTenant {
+  id: string;
+  name: string;
+  from_date: string;
+  to_date: string;
+  duration: string;
+}
+
+interface Room {
+  id: string;
+  code: string;
+  name: string | null;
+  description: string | null;
+  currentRent: number;
+  status: string;
+  currentTenant: CurrentTenant | null;
+  rentHistory: RentHistory[];
+  pastTenants: PastTenant[];
+}
 
 export default function RoomDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const [room, setRoom] = useState<Room | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // In real app, fetch room data based on id
-  const room = roomData;
+  useEffect(() => {
+    const fetchRoomDetails = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(`/api/rooms/${id}`);
+        if (!response.ok) {
+          if (response.status === 404) {
+            toast.error("Room not found");
+          } else {
+            throw new Error("Failed to fetch room details");
+          }
+          return;
+        }
+        const data = await response.json();
+        setRoom(data.room);
+      } catch (error) {
+        console.error("Error fetching room details:", error);
+        toast.error("Failed to load room details");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRoomDetails();
+  }, [id]);
+
+  const handleRoomAllocated = () => {
+    // Refresh room data after allocation
+    window.location.reload();
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!room) {
+    return (
+      <div className="p-4">
+        <div className="text-center py-12">
+          <p className="text-muted-foreground">Room not found</p>
+          <Link href="/rooms">
+            <Button className="mt-4">Back to Rooms</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 space-y-4">
@@ -70,7 +131,15 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
         <CardContent className="p-4 space-y-3">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-sm text-muted-foreground">Current Rent</p>
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">Current Rent</p>
+                <UpdateRentForm
+                  roomId={room.id}
+                  roomCode={room.code}
+                  currentRent={room.currentRent}
+                  onSuccess={handleRoomAllocated}
+                />
+              </div>
               <p className="text-2xl font-bold">₹{room.currentRent.toLocaleString("en-IN")}</p>
               <p className="text-xs text-muted-foreground">per month</p>
             </div>
@@ -81,7 +150,7 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                   {room.currentTenant.name}
                 </Link>
                 <p className="text-xs text-muted-foreground">
-                  Since {new Date(room.currentTenant.allocatedFrom).toLocaleDateString("en-IN")}
+                  Since {new Date(room.currentTenant.allocated_from).toLocaleDateString("en-IN")}
                 </p>
               </div>
             )}
@@ -89,7 +158,7 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
           {room.status === "vacant" && (
             <AllocateRoomForm
               preSelectedRoomId={room.id}
-              onSubmit={(data) => console.log("Room allocation submitted:", data)}
+              onSubmit={handleRoomAllocated}
               trigger={<Button className="w-full">Allocate to Tenant</Button>}
             />
           )}
@@ -99,58 +168,58 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
       {/* Rent History */}
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base flex items-center gap-2">
-              <IndianRupee className="h-4 w-4" />
-              Rent History
-            </CardTitle>
-            <Button size="sm" variant="outline">
-              <Edit className="h-4 w-4 mr-1" />
-              Update Rent
-            </Button>
-          </div>
+          <CardTitle className="text-base flex items-center gap-2">
+            <IndianRupee className="h-4 w-4" />
+            Rent History
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          {/* Mobile View */}
-          <div className="md:hidden space-y-3">
-            {room.rentHistory.map((history, idx) => (
-              <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                <div>
-                  <p className="font-medium">₹{history.rent.toLocaleString("en-IN")}/mo</p>
-                  <p className="text-sm text-muted-foreground">
-                    From {new Date(history.effectiveFrom).toLocaleDateString("en-IN")}
-                  </p>
-                </div>
-                {idx === 0 && <Badge>Current</Badge>}
-              </div>
-            ))}
-          </div>
-
-          {/* Desktop View */}
-          <div className="hidden md:block">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Effective From</TableHead>
-                  <TableHead className="text-right">Rent</TableHead>
-                  <TableHead>Updated By</TableHead>
-                  <TableHead></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+          {room.rentHistory.length === 0 ? (
+            <p className="text-center py-4 text-muted-foreground">No rent history available</p>
+          ) : (
+            <>
+              {/* Mobile View */}
+              <div className="md:hidden space-y-3">
                 {room.rentHistory.map((history, idx) => (
-                  <TableRow key={idx}>
-                    <TableCell>{new Date(history.effectiveFrom).toLocaleDateString("en-IN")}</TableCell>
-                    <TableCell className="text-right font-medium">₹{history.rent.toLocaleString("en-IN")}</TableCell>
-                    <TableCell className="text-muted-foreground">{history.updatedBy}</TableCell>
-                    <TableCell className="text-right">
-                      {idx === 0 && <Badge variant="secondary">Current</Badge>}
-                    </TableCell>
-                  </TableRow>
+                  <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                    <div>
+                      <p className="font-medium">₹{Number(history.new_rent).toLocaleString("en-IN")}/mo</p>
+                      <p className="text-sm text-muted-foreground">
+                        From {new Date(history.effective_from).toLocaleDateString("en-IN")}
+                      </p>
+                    </div>
+                    {idx === 0 && <Badge>Current</Badge>}
+                  </div>
                 ))}
-              </TableBody>
-            </Table>
-          </div>
+              </div>
+
+              {/* Desktop View */}
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Effective From</TableHead>
+                      <TableHead className="text-right">Rent</TableHead>
+                      <TableHead>Created By</TableHead>
+                      <TableHead></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {room.rentHistory.map((history, idx) => (
+                      <TableRow key={idx}>
+                        <TableCell>{new Date(history.effective_from).toLocaleDateString("en-IN")}</TableCell>
+                        <TableCell className="text-right font-medium">₹{Number(history.new_rent).toLocaleString("en-IN")}</TableCell>
+                        <TableCell className="text-muted-foreground">{history.created_by || "-"}</TableCell>
+                        <TableCell className="text-right">
+                          {idx === 0 && <Badge variant="secondary">Current</Badge>}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
@@ -176,7 +245,7 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                       <Badge variant="outline">{tenant.duration}</Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      {new Date(tenant.from).toLocaleDateString("en-IN")} - {new Date(tenant.to).toLocaleDateString("en-IN")}
+                      {new Date(tenant.from_date).toLocaleDateString("en-IN")} - {new Date(tenant.to_date).toLocaleDateString("en-IN")}
                     </p>
                   </div>
                 ))}
@@ -197,8 +266,8 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                     {room.pastTenants.map((tenant) => (
                       <TableRow key={tenant.id}>
                         <TableCell className="font-medium">{tenant.name}</TableCell>
-                        <TableCell>{new Date(tenant.from).toLocaleDateString("en-IN")}</TableCell>
-                        <TableCell>{new Date(tenant.to).toLocaleDateString("en-IN")}</TableCell>
+                        <TableCell>{new Date(tenant.from_date).toLocaleDateString("en-IN")}</TableCell>
+                        <TableCell>{new Date(tenant.to_date).toLocaleDateString("en-IN")}</TableCell>
                         <TableCell className="text-right">{tenant.duration}</TableCell>
                       </TableRow>
                     ))}

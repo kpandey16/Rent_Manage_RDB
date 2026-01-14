@@ -23,9 +23,33 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Info, Loader2 } from "lucide-react";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Plus, Info, Loader2, Check, ChevronsUpDown } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+
+interface Room {
+  id: string;
+  code: string;
+  name: string;
+  currentRent: number;
+  expectedRent: number;
+  moveInDate: string;
+  isActive: boolean;
+}
 
 interface Tenant {
   id: string;
@@ -35,6 +59,9 @@ interface Tenant {
   lastPaidMonth: string | null;
   creditBalance: number;
   totalDues: number;
+  rooms: Room[];
+  nextUnpaidPeriod: string | null;
+  nextUnpaidPeriodRaw: string | null;
 }
 
 const paymentTypes = [
@@ -42,7 +69,7 @@ const paymentTypes = [
   { value: "security_deposit_add", label: "Security Deposit - Add/Increase", category: "deposit" },
   { value: "security_deposit_withdraw", label: "Security Deposit - Withdraw/Decrease", category: "deposit" },
   { value: "deposit_used", label: "Security Deposit Used (for dues)", category: "adjustment" },
-  { value: "credit", label: "Credit Applied", category: "adjustment" },
+  { value: "credit", label: "Apply Credit to Rent", category: "adjustment" },
   { value: "discount", label: "Discount", category: "adjustment" },
   { value: "maintenance", label: "Maintenance Adjustment", category: "adjustment" },
 ];
@@ -70,6 +97,7 @@ export interface PaymentFormData {
 
 export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps) {
   const [open, setOpen] = useState(false);
+  const [tenantComboboxOpen, setTenantComboboxOpen] = useState(false);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -87,6 +115,16 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
   useEffect(() => {
     if (open) {
       fetchTenants();
+      // Reset form when dialog opens
+      setFormData({
+        tenantId: "",
+        amount: 0,
+        type: "payment",
+        method: "cash",
+        date: format(new Date(), "yyyy-MM-dd"),
+        notes: "",
+      });
+      setSelectedTenant(null);
     }
   }, [open]);
 
@@ -164,7 +202,9 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
 
   const handleQuickFill = () => {
     if (selectedTenant) {
-      setFormData((prev) => ({ ...prev, amount: selectedTenant.monthlyRent }));
+      // Use total expected rent if rooms data is available, otherwise use monthly rent
+      const expectedTotal = selectedTenant.rooms?.reduce((sum, room) => sum + room.expectedRent, 0) || selectedTenant.monthlyRent;
+      setFormData((prev) => ({ ...prev, amount: expectedTotal }));
     }
   };
 
@@ -190,53 +230,130 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
             {/* Tenant Selection */}
             <div className="grid gap-2">
               <Label htmlFor="tenant">Tenant *</Label>
-              <Select
-                value={formData.tenantId}
-                onValueChange={(value) => setFormData((prev) => ({ ...prev, tenantId: value }))}
-                disabled={loading || submitting}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={loading ? "Loading tenants..." : "Select tenant"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {tenants.length === 0 ? (
-                    <SelectItem value="none" disabled>No tenants found</SelectItem>
-                  ) : (
-                    tenants.map((tenant) => (
-                      <SelectItem key={tenant.id} value={tenant.id}>
-                        {tenant.name} (₹{(tenant.monthlyRent || 0).toLocaleString("en-IN")}/mo)
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
+              <Popover open={tenantComboboxOpen} onOpenChange={setTenantComboboxOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={tenantComboboxOpen}
+                    className="w-full justify-between"
+                    disabled={loading || submitting}
+                  >
+                    {formData.tenantId
+                      ? tenants.find((tenant) => tenant.id === formData.tenantId)?.name
+                      : loading
+                      ? "Loading tenants..."
+                      : "Select tenant..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[400px] p-0">
+                  <Command>
+                    <CommandInput placeholder="Search tenant..." />
+                    <CommandList>
+                      <CommandEmpty>No tenant found.</CommandEmpty>
+                      <CommandGroup>
+                        {tenants.map((tenant) => (
+                          <CommandItem
+                            key={tenant.id}
+                            value={tenant.name}
+                            onSelect={() => {
+                              setFormData((prev) => ({ ...prev, tenantId: tenant.id }));
+                              setTenantComboboxOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                formData.tenantId === tenant.id ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {tenant.name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
 
             {/* Tenant Information Display */}
             {selectedTenant && (
-              <div className="rounded-lg border bg-muted/50 p-4">
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <p className="text-muted-foreground">Monthly Rent</p>
-                    <p className="font-semibold">₹{selectedTenant.monthlyRent.toLocaleString("en-IN")}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Last Paid Month</p>
-                    <p className="font-semibold">{selectedTenant.lastPaidMonth}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Credit Balance</p>
-                    <p className={`font-semibold ${selectedTenant.creditBalance > 0 ? 'text-green-600' : ''}`}>
-                      ₹{selectedTenant.creditBalance.toLocaleString("en-IN")}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Total Dues</p>
-                    <p className={`font-semibold ${selectedTenant.totalDues > 0 ? 'text-red-600' : ''}`}>
-                      ₹{selectedTenant.totalDues.toLocaleString("en-IN")}
-                    </p>
+              <div className="space-y-3">
+                <div className="rounded-lg border bg-muted/50 p-4">
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-muted-foreground">Monthly Rent</p>
+                      <p className="font-semibold">₹{selectedTenant.monthlyRent.toLocaleString("en-IN")}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Last Paid Month</p>
+                      <p className="font-semibold">{selectedTenant.lastPaidMonth || "N/A"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Credit Balance</p>
+                      <p className={`font-semibold ${selectedTenant.creditBalance > 0 ? 'text-green-600' : ''}`}>
+                        ₹{selectedTenant.creditBalance.toLocaleString("en-IN")}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Total Dues</p>
+                      <p className={`font-semibold ${selectedTenant.totalDues > 0 ? 'text-red-600' : ''}`}>
+                        ₹{selectedTenant.totalDues.toLocaleString("en-IN")}
+                      </p>
+                    </div>
                   </div>
                 </div>
+
+                {/* Room Breakdown */}
+                {selectedTenant.rooms && selectedTenant.rooms.length > 0 && (
+                  <div className="rounded-lg border bg-muted/50 p-4">
+                    <div className="mb-3 flex items-center justify-between">
+                      <p className="text-sm font-semibold">
+                        Rooms & Expected Rent
+                        {selectedTenant.nextUnpaidPeriod && (
+                          <span className="ml-2 text-muted-foreground font-normal">
+                            (for {selectedTenant.nextUnpaidPeriod})
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      {selectedTenant.rooms.map((room) => (
+                        <div
+                          key={room.id}
+                          className="flex items-center justify-between text-sm py-2 border-t first:border-t-0 first:pt-0"
+                        >
+                          <div>
+                            <p className="font-medium">{room.code}</p>
+                            <p className="text-xs text-muted-foreground">{room.name}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-semibold">
+                              ₹{room.expectedRent.toLocaleString("en-IN")}
+                            </p>
+                            {room.expectedRent !== room.currentRent && (
+                              <p className="text-xs text-muted-foreground">
+                                (Current: ₹{room.currentRent.toLocaleString("en-IN")})
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      {selectedTenant.rooms.length > 1 && (
+                        <div className="flex items-center justify-between text-sm pt-2 border-t font-semibold">
+                          <p>Total Expected</p>
+                          <p>
+                            ₹{selectedTenant.rooms
+                              .reduce((sum, room) => sum + room.expectedRent, 0)
+                              .toLocaleString("en-IN")}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -252,7 +369,10 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
                     className="h-auto p-0 text-xs"
                     onClick={handleQuickFill}
                   >
-                    Fill monthly rent (₹{selectedTenant.monthlyRent.toLocaleString("en-IN")})
+                    {(() => {
+                      const expectedTotal = selectedTenant.rooms?.reduce((sum, room) => sum + room.expectedRent, 0) || selectedTenant.monthlyRent;
+                      return `Fill expected rent (₹${expectedTotal.toLocaleString("en-IN")})`;
+                    })()}
                   </Button>
                 )}
               </div>
@@ -263,14 +383,23 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
                   type="number"
                   min="0"
                   step="1"
-                  value={formData.amount || ""}
+                  value={formData.type === "credit" ? "" : (formData.amount || "")}
                   onChange={(e) => setFormData((prev) => ({ ...prev, amount: Number(e.target.value) }))}
                   className="pl-7"
-                  placeholder="0"
-                  disabled={submitting}
-                  required
+                  placeholder={formData.type === "credit" ? "Uses existing credit" : "0"}
+                  disabled={submitting || formData.type === "credit"}
+                  required={formData.type !== "credit"}
                 />
               </div>
+              {formData.type === "credit" && selectedTenant && (
+                <Alert>
+                  <AlertDescription>
+                    <Info className="inline h-4 w-4 mr-1" />
+                    This will apply existing credit balance (₹{selectedTenant.creditBalance.toLocaleString("en-IN")}) to unpaid rent periods.
+                    {selectedTenant.creditBalance === 0 && " No credit available to apply."}
+                  </AlertDescription>
+                </Alert>
+              )}
             </div>
 
             {/* Type */}
@@ -297,7 +426,7 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
                   </SelectGroup>
                   <SelectGroup>
                     <SelectLabel>Adjustments</SelectLabel>
-                    <SelectItem value="credit">Credit Applied</SelectItem>
+                    <SelectItem value="credit">Apply Credit to Rent</SelectItem>
                     <SelectItem value="discount">Discount</SelectItem>
                     <SelectItem value="maintenance">Maintenance Adjustment</SelectItem>
                   </SelectGroup>
@@ -366,7 +495,7 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
             <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={submitting}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!formData.tenantId || !formData.amount || submitting}>
+            <Button type="submit" disabled={!formData.tenantId || (formData.type !== "credit" && !formData.amount) || submitting}>
               {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {submitting ? "Recording..." : "Record Payment"}
             </Button>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { calculateTotalRentOwed, getRentForPeriod } from "@/lib/rent-calculator";
 
 // GET /api/tenants/[id] - Get tenant details with financial information
 export async function GET(
@@ -37,8 +38,64 @@ export async function GET(
       args: [id],
     });
 
-    // Calculate total monthly rent
+    // Calculate total monthly rent (current rent)
     const monthlyRent = rooms.rows.reduce((sum, room) => sum + Number(room.monthly_rent), 0);
+
+    // Find the next unpaid period to show expected rent for that month
+    let nextUnpaidPeriod: string | null = null;
+
+    if (rooms.rows.length > 0) {
+      // Get already paid periods
+      const paidPeriodsResult = await db.execute({
+        sql: `SELECT for_period FROM rent_payments WHERE tenant_id = ? ORDER BY for_period`,
+        args: [id],
+      });
+
+      const paidPeriods = new Set(paidPeriodsResult.rows.map(row => row.for_period as string));
+
+      // Find earliest move-in date
+      const earliestMoveIn = rooms.rows.reduce((earliest: Date | null, room: any) => {
+        const moveInDate = new Date(room.move_in_date as string);
+        return !earliest || moveInDate < earliest ? moveInDate : earliest;
+      }, null);
+
+      if (earliestMoveIn) {
+        // Generate periods from move-in to current month to find next unpaid
+        const currentDate = new Date();
+        let date = new Date(earliestMoveIn.getFullYear(), earliestMoveIn.getMonth(), 1);
+
+        while (date <= currentDate) {
+          const period = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+          if (!paidPeriods.has(period)) {
+            nextUnpaidPeriod = period;
+            break;
+          }
+          date.setMonth(date.getMonth() + 1);
+        }
+      }
+    }
+
+    // Enhance room data with expected rent for next unpaid period
+    const roomsWithExpectedRent = await Promise.all(
+      rooms.rows.map(async (room: any) => {
+        let expectedRent = Number(room.monthly_rent); // Default to current rent
+
+        if (nextUnpaidPeriod) {
+          // Get historical rent for this room for the next unpaid period
+          expectedRent = await getRentForPeriod(room.id as string, nextUnpaidPeriod, db);
+        }
+
+        return {
+          id: room.id,
+          code: room.code,
+          name: room.name,
+          currentRent: Number(room.monthly_rent),
+          expectedRent: expectedRent,
+          moveInDate: room.move_in_date,
+          isActive: room.is_active,
+        };
+      })
+    );
 
     // Get security deposit balance
     const depositBalance = await db.execute({
@@ -55,13 +112,19 @@ export async function GET(
       args: [id],
     });
 
-    // Get credit balance (total ledger amount)
+    // Get credit balance (ledger total - rent payments applied)
     const creditBalance = await db.execute({
-      sql: `SELECT COALESCE(SUM(amount), 0) as balance
-            FROM tenant_ledger
-            WHERE tenant_id = ?`,
-      args: [id],
+      sql: `SELECT
+              COALESCE(SUM(tl.amount), 0) as ledger_total,
+              COALESCE((SELECT SUM(rent_amount) FROM rent_payments WHERE tenant_id = ?), 0) as payments_total
+            FROM tenant_ledger tl
+            WHERE tl.tenant_id = ?`,
+      args: [id, id],
     });
+
+    const ledgerTotal = Number(creditBalance.rows[0].ledger_total);
+    const paymentsTotal = Number(creditBalance.rows[0].payments_total);
+    const actualCreditBalance = ledgerTotal - paymentsTotal;
 
     // Get total rent paid
     const totalRentPaid = await db.execute({
@@ -85,19 +148,24 @@ export async function GET(
       ? formatPeriod(lastPayment.rows[0].for_period as string)
       : null;
 
-    // Calculate total dues (negative balance means dues)
-    const credit = Number(creditBalance.rows[0].balance);
-    const rentPaid = Number(totalRentPaid.rows[0].total);
-    const totalDues = Math.max(0, rentPaid - credit); // If credit < rentPaid, there are dues
+    // Calculate total rent owed using rent update history
+    // This will use the correct rent for each month based on effective dates
+    const totalRentOwed = await calculateTotalRentOwed(id, db);
+
+    // Calculate total dues
+    // Total dues = Rent owed - Credits (payments made)
+    const totalDues = Math.max(0, totalRentOwed - ledgerTotal);
 
     const tenantDetails = {
       ...tenant.rows[0],
-      rooms: rooms.rows,
+      rooms: roomsWithExpectedRent,
       monthlyRent,
       securityDeposit: Number(depositBalance.rows[0].balance),
-      creditBalance: credit,
+      creditBalance: actualCreditBalance,
       totalDues,
       lastPaidMonth,
+      nextUnpaidPeriod: nextUnpaidPeriod ? formatPeriod(nextUnpaidPeriod) : null,
+      nextUnpaidPeriodRaw: nextUnpaidPeriod,
     };
 
     return NextResponse.json({ tenant: tenantDetails });

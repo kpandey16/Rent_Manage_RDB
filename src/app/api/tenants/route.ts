@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, generateId, getCurrentDateTime } from "@/lib/db";
+import { calculateTotalRentOwed } from "@/lib/rent-calculator";
 
 // POST /api/tenants - Create a new tenant
 export async function POST(request: NextRequest) {
@@ -102,6 +103,10 @@ export async function GET() {
       sql: `SELECT
               t.*,
               COUNT(DISTINCT CASE WHEN tr.is_active = 1 THEN tr.id END) as active_rooms_count,
+              GROUP_CONCAT(DISTINCT CASE WHEN tr.is_active = 1 THEN r.code END) as room_codes,
+              GROUP_CONCAT(DISTINCT CASE WHEN tr.is_active = 1 THEN r.id END) as room_ids,
+              GROUP_CONCAT(DISTINCT CASE WHEN tr.is_active = 1 THEN r.monthly_rent END) as room_rents,
+              COALESCE(SUM(CASE WHEN tr.is_active = 1 THEN r.monthly_rent ELSE 0 END), 0) as monthly_rent,
               COALESCE(SUM(DISTINCT sd.amount *
                 CASE
                   WHEN sd.transaction_type = 'deposit' THEN 1
@@ -109,9 +114,22 @@ export async function GET() {
                   WHEN sd.transaction_type = 'used_for_rent' THEN -1
                   ELSE 0
                 END
-              ), 0) as security_deposit_balance
+              ), 0) as security_deposit_balance,
+              COALESCE((
+                SELECT SUM(amount) FROM tenant_ledger WHERE tenant_id = t.id
+              ), 0) as total_credits,
+              COALESCE((
+                SELECT SUM(rent_amount) FROM rent_payments WHERE tenant_id = t.id
+              ), 0) as total_rent_paid,
+              (
+                SELECT for_period FROM rent_payments
+                WHERE tenant_id = t.id
+                ORDER BY for_period DESC
+                LIMIT 1
+              ) as last_paid_period
             FROM tenants t
             LEFT JOIN tenant_rooms tr ON t.id = tr.tenant_id
+            LEFT JOIN rooms r ON tr.room_id = r.id
             LEFT JOIN security_deposits sd ON t.id = sd.tenant_id
             WHERE t.is_active = 1
             GROUP BY t.id
@@ -119,8 +137,37 @@ export async function GET() {
       args: [],
     });
 
+    // Format the data with proper calculations
+    const tenants = await Promise.all(
+      result.rows.map(async (tenant: any) => {
+        const ledgerTotal = Number(tenant.total_credits || 0);
+        const paymentsTotal = Number(tenant.total_rent_paid || 0);
+        const balance = ledgerTotal - paymentsTotal;
+
+        // Calculate total rent owed using proper calculation
+        const totalRentOwed = await calculateTotalRentOwed(tenant.id, db);
+
+        // Format last paid period (YYYY-MM to MMM-YY)
+        let lastPaidMonth = "Never";
+        if (tenant.last_paid_period) {
+          const [year, month] = tenant.last_paid_period.split("-");
+          const date = new Date(parseInt(year), parseInt(month) - 1);
+          const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+          lastPaidMonth = `${monthNames[date.getMonth()]}-${year.substring(2)}`;
+        }
+
+        return {
+          ...tenant,
+          monthly_rent: Number(tenant.monthly_rent || 0),
+          credit_balance: balance > 0 ? balance : 0,
+          total_dues: Math.max(0, totalRentOwed - ledgerTotal),
+          last_paid_month: lastPaidMonth,
+        };
+      })
+    );
+
     return NextResponse.json({
-      tenants: result.rows,
+      tenants,
     });
   } catch (error) {
     console.error("Error fetching tenants:", error);
