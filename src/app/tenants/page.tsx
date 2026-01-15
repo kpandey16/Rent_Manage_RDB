@@ -44,17 +44,13 @@ export default function TenantsPage() {
       const data = await response.json();
 
       // Transform API data to match UI format
-      // Filter out tenants without active room allocation
+      // Show all tenants (including those without room allocations)
       const transformedTenants = data.tenants
-        .filter((t: any) => {
-          const rooms = t.room_codes ? t.room_codes.split(',').filter(Boolean) : [];
-          return rooms.length > 0; // Only show tenants with allocated rooms
-        })
         .map((t: any) => ({
           id: t.id,
           name: t.name,
           phone: t.phone,
-          rooms: t.room_codes.split(',').filter(Boolean),
+          rooms: t.room_codes ? t.room_codes.split(',').filter(Boolean) : [],
           monthlyRent: Number(t.monthly_rent || 0),
           dues: Number(t.total_dues || 0),
           creditBalance: Number(t.credit_balance || 0),
@@ -173,11 +169,15 @@ export default function TenantsPage() {
                           <Phone className="h-3 w-3" />
                           {tenant.phone}
                         </div>
-                        {tenant.rooms.length > 0 && (
+                        {tenant.rooms.length > 0 ? (
                           <div className="flex items-center gap-1">
                             <DoorOpen className="h-3 w-3" />
                             {tenant.rooms.join(", ")}
                           </div>
+                        ) : (
+                          <Badge variant="outline" className="text-xs">
+                            No room allocated
+                          </Badge>
                         )}
                       </div>
                       <div className="text-xs text-muted-foreground">
