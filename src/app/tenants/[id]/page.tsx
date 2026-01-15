@@ -28,6 +28,12 @@ interface Room {
   isActive: number;
 }
 
+interface Adjustment {
+  type: string;
+  amount: number;
+  description: string | null;
+}
+
 interface Transaction {
   id: string;
   transaction_date: string;
@@ -37,6 +43,9 @@ interface Transaction {
   description: string | null;
   appliedTo?: string;
   creditRemaining?: number | null;
+  bundleId?: string | null;
+  adjustments?: Adjustment[];
+  totalAmount?: number;
 }
 
 interface Tenant {
@@ -243,13 +252,30 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
               <div className="md:hidden space-y-3">
                 {transactions.map((transaction) => {
                   const amount = Number(transaction.amount);
-                  const isPositive = amount >= 0;
+                  const totalAmount = transaction.totalAmount || amount;
+                  const isPositive = totalAmount >= 0;
+                  const hasAdjustments = transaction.adjustments && transaction.adjustments.length > 0;
+
                   return (
                     <div key={transaction.id} className="p-3 rounded-lg bg-muted/50">
                       <div className="flex items-center justify-between mb-2">
-                        <span className={`text-lg font-semibold ${isPositive ? 'text-green-600' : 'text-orange-600'}`}>
-                          {isPositive ? '+' : ''}₹{Math.abs(amount).toLocaleString("en-IN")}
-                        </span>
+                        <div>
+                          <span className={`text-lg font-semibold ${isPositive ? 'text-green-600' : 'text-orange-600'}`}>
+                            {isPositive ? '+' : ''}₹{Math.abs(amount).toLocaleString("en-IN")}
+                          </span>
+                          {hasAdjustments && (
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {transaction.adjustments!.map((adj, idx) => (
+                                <div key={idx}>
+                                  + ₹{adj.amount.toLocaleString("en-IN")} {adj.type}
+                                </div>
+                              ))}
+                              <div className="font-medium mt-0.5">
+                                Total: ₹{totalAmount.toLocaleString("en-IN")}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                         <Badge variant="outline" className="capitalize">{transaction.type}</Badge>
                       </div>
                       <p className="text-sm text-muted-foreground">
@@ -296,12 +322,25 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
                   <TableBody>
                     {transactions.map((transaction) => {
                       const amount = Number(transaction.amount);
-                      const isPositive = amount >= 0;
+                      const totalAmount = transaction.totalAmount || amount;
+                      const isPositive = totalAmount >= 0;
+                      const hasAdjustments = transaction.adjustments && transaction.adjustments.length > 0;
+
                       return (
                         <TableRow key={transaction.id}>
                           <TableCell>{new Date(transaction.transaction_date).toLocaleDateString("en-IN")}</TableCell>
                           <TableCell className={`font-medium ${isPositive ? 'text-green-600' : 'text-orange-600'}`}>
-                            {isPositive ? '+' : ''}₹{Math.abs(amount).toLocaleString("en-IN")}
+                            <div>
+                              <div>{isPositive ? '+' : ''}₹{Math.abs(amount).toLocaleString("en-IN")}</div>
+                              {hasAdjustments && (
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  {transaction.adjustments!.map((adj, idx) => (
+                                    <div key={idx}>+ ₹{adj.amount.toLocaleString("en-IN")} {adj.type}</div>
+                                  ))}
+                                  <div className="font-medium">Total: ₹{totalAmount.toLocaleString("en-IN")}</div>
+                                </div>
+                              )}
+                            </div>
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline" className="capitalize">{transaction.type}</Badge>

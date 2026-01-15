@@ -91,6 +91,7 @@ async function handlePayment(
   autoApplyToRent: boolean = true
 ) {
   const ledgerId = generateId();
+  const bundleId = generateId(); // Bundle ID for grouping related transactions
   const appliedPeriods: string[] = [];
   const adjustmentIds: string[] = [];
   const totalAdjustments = discount + maintenanceDeduction + otherAdjustment;
@@ -113,9 +114,9 @@ async function handlePayment(
   if (discount > 0) {
     const discountId = generateId();
     await db.execute({
-      sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, subtype, amount, payment_method, description, created_at)
-            VALUES (?, ?, ?, 'adjustment', 'discount', ?, NULL, ?, ?)`,
-      args: [discountId, tenantId, transactionDate, discount, notes || "Discount applied", now],
+      sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, subtype, amount, payment_method, description, bundle_id, created_at)
+            VALUES (?, ?, ?, 'adjustment', 'discount', ?, NULL, ?, ?, ?)`,
+      args: [discountId, tenantId, transactionDate, discount, notes || "Discount applied", bundleId, now],
     });
     adjustmentIds.push(discountId);
   }
@@ -123,9 +124,9 @@ async function handlePayment(
   if (maintenanceDeduction > 0) {
     const maintenanceId = generateId();
     await db.execute({
-      sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, subtype, amount, payment_method, description, created_at)
-            VALUES (?, ?, ?, 'adjustment', 'maintenance', ?, NULL, ?, ?)`,
-      args: [maintenanceId, tenantId, transactionDate, maintenanceDeduction, notes || "Maintenance expense deduction", now],
+      sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, subtype, amount, payment_method, description, bundle_id, created_at)
+            VALUES (?, ?, ?, 'adjustment', 'maintenance', ?, NULL, ?, ?, ?)`,
+      args: [maintenanceId, tenantId, transactionDate, maintenanceDeduction, notes || "Maintenance expense deduction", bundleId, now],
     });
     adjustmentIds.push(maintenanceId);
   }
@@ -133,18 +134,18 @@ async function handlePayment(
   if (otherAdjustment > 0) {
     const otherId = generateId();
     await db.execute({
-      sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, subtype, amount, payment_method, description, created_at)
-            VALUES (?, ?, ?, 'adjustment', 'other', ?, NULL, ?, ?)`,
-      args: [otherId, tenantId, transactionDate, otherAdjustment, notes || "Other adjustment", now],
+      sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, subtype, amount, payment_method, description, bundle_id, created_at)
+            VALUES (?, ?, ?, 'adjustment', 'other', ?, NULL, ?, ?, ?)`,
+      args: [otherId, tenantId, transactionDate, otherAdjustment, notes || "Other adjustment", bundleId, now],
     });
     adjustmentIds.push(otherId);
   }
 
   // Create ledger entry for the payment
   await db.execute({
-    sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, amount, payment_method, description, created_at)
-          VALUES (?, ?, ?, 'payment', ?, ?, ?, ?)`,
-    args: [ledgerId, tenantId, transactionDate, amount, method, notes || "Payment received", now],
+    sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, amount, payment_method, description, bundle_id, created_at)
+          VALUES (?, ?, ?, 'payment', ?, ?, ?, ?, ?)`,
+    args: [ledgerId, tenantId, transactionDate, amount, method, notes || "Payment received", bundleId, now],
   });
 
   // Calculate total available amount (existing credit + new payment + adjustments)
@@ -664,6 +665,7 @@ export async function GET(request: NextRequest) {
         tl.amount,
         tl.payment_method,
         tl.description,
+        tl.bundle_id,
         tl.created_at
       FROM tenant_ledger tl
       JOIN tenants t ON tl.tenant_id = t.id
@@ -679,9 +681,22 @@ export async function GET(request: NextRequest) {
 
     const result = await db.execute({ sql, args });
 
-    // For each transaction, fetch applied rent periods and calculate TOTAL credit balance at that time
+    // Group transactions by bundle_id
+    const bundleMap = new Map<string | null, any[]>();
+    result.rows.forEach((transaction: any) => {
+      const bundleKey = transaction.bundle_id || transaction.id; // Use transaction id as key if no bundle_id
+      if (!bundleMap.has(bundleKey)) {
+        bundleMap.set(bundleKey, []);
+      }
+      bundleMap.get(bundleKey)!.push(transaction);
+    });
+
+    // Process each bundle (may contain 1 or more transactions)
     const transactionsWithDetails = await Promise.all(
-      result.rows.map(async (transaction: any) => {
+      Array.from(bundleMap.entries()).map(async ([bundleKey, bundleTransactions]) => {
+        // Use the primary transaction (payment or first in bundle) as the main transaction
+        const primaryTransaction = bundleTransactions.find(t => t.type === 'payment') || bundleTransactions[0];
+        const transaction = primaryTransaction;
         // All ledger entry types that contribute to credit balance (3 core types)
         const creditTypes = ['payment', 'credit', 'adjustment'];
 
@@ -738,11 +753,27 @@ export async function GET(request: NextRequest) {
             appliedToMessage = `${subtypeLabel} Applied`;
           }
 
+          // Calculate total amount for bundled transactions
+          const totalAmount = bundleTransactions.reduce((sum, t) => sum + Number(t.amount), 0);
+
+          // Collect adjustment details for bundled transactions
+          const adjustments = bundleTransactions
+            .filter(t => t.type === 'adjustment')
+            .map(t => ({
+              type: t.subtype || 'other',
+              amount: Number(t.amount),
+              description: t.description,
+            }));
+
           return {
             ...transaction,
             appliedPeriods,
             appliedTo: appliedToMessage,
             creditRemaining: cumulativeCreditBalance,
+            bundleId: transaction.bundle_id,
+            bundledTransactions: bundleTransactions.length > 1 ? bundleTransactions : undefined,
+            adjustments: adjustments.length > 0 ? adjustments : undefined,
+            totalAmount: bundleTransactions.length > 1 ? totalAmount : Number(transaction.amount),
           };
         }
         // Handle security deposit and other non-credit transactions
@@ -751,6 +782,9 @@ export async function GET(request: NextRequest) {
           appliedPeriods: [],
           appliedTo: 'Other Transaction',
           creditRemaining: null,
+          bundleId: transaction.bundle_id,
+          bundledTransactions: bundleTransactions.length > 1 ? bundleTransactions : undefined,
+          totalAmount: Number(transaction.amount),
         };
       })
     );
