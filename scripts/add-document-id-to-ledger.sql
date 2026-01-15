@@ -1,7 +1,7 @@
--- Migration Script: Add payment_id column to tenant_ledger
--- This allows linking adjustments to their parent payment transaction
+-- Migration Script: Add document_id column to tenant_ledger
+-- This allows linking related transactions in a single batch/document
 
--- Step 1: Create new table with payment_id column
+-- Step 1: Create new table with document_id column
 CREATE TABLE tenant_ledger_new (
     id TEXT PRIMARY KEY,
     tenant_id TEXT NOT NULL,
@@ -11,12 +11,12 @@ CREATE TABLE tenant_ledger_new (
     amount REAL NOT NULL,
     payment_method TEXT,
     description TEXT,
-    payment_id TEXT,
+    document_id TEXT,
     created_at TEXT NOT NULL,
     FOREIGN KEY (tenant_id) REFERENCES tenants(id)
 );
 
--- Step 2: Copy all existing data (payment_id will be NULL for old records)
+-- Step 2: Copy all existing data (document_id will be NULL for old records)
 INSERT INTO tenant_ledger_new
 SELECT
     id,
@@ -27,7 +27,7 @@ SELECT
     amount,
     payment_method,
     description,
-    NULL as payment_id,
+    NULL as document_id,
     created_at
 FROM tenant_ledger;
 

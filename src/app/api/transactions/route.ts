@@ -91,6 +91,7 @@ async function handlePayment(
   autoApplyToRent: boolean = true
 ) {
   const ledgerId = generateId();
+  const documentId = generateId(); // Document ID for grouping all related transactions
   const appliedPeriods: string[] = [];
   const adjustmentIds: string[] = [];
   const totalAdjustments = discount + maintenanceDeduction + otherAdjustment;
@@ -110,13 +111,13 @@ async function handlePayment(
   const existingCredit = ledgerTotal - paymentsTotal;
 
   // ATOMIC BUNDLE: Create all adjustment entries first (all use 'adjustment' type with subtype)
-  // Adjustments reference the payment via payment_id
+  // All transactions in the bundle share the same document_id
   if (discount > 0) {
     const discountId = generateId();
     await db.execute({
-      sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, subtype, amount, payment_method, description, payment_id, created_at)
+      sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, subtype, amount, payment_method, description, document_id, created_at)
             VALUES (?, ?, ?, 'adjustment', 'discount', ?, NULL, ?, ?, ?)`,
-      args: [discountId, tenantId, transactionDate, discount, notes || "Discount applied", ledgerId, now],
+      args: [discountId, tenantId, transactionDate, discount, notes || "Discount applied", documentId, now],
     });
     adjustmentIds.push(discountId);
   }
@@ -124,9 +125,9 @@ async function handlePayment(
   if (maintenanceDeduction > 0) {
     const maintenanceId = generateId();
     await db.execute({
-      sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, subtype, amount, payment_method, description, payment_id, created_at)
+      sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, subtype, amount, payment_method, description, document_id, created_at)
             VALUES (?, ?, ?, 'adjustment', 'maintenance', ?, NULL, ?, ?, ?)`,
-      args: [maintenanceId, tenantId, transactionDate, maintenanceDeduction, notes || "Maintenance expense deduction", ledgerId, now],
+      args: [maintenanceId, tenantId, transactionDate, maintenanceDeduction, notes || "Maintenance expense deduction", documentId, now],
     });
     adjustmentIds.push(maintenanceId);
   }
@@ -134,18 +135,18 @@ async function handlePayment(
   if (otherAdjustment > 0) {
     const otherId = generateId();
     await db.execute({
-      sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, subtype, amount, payment_method, description, payment_id, created_at)
+      sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, subtype, amount, payment_method, description, document_id, created_at)
             VALUES (?, ?, ?, 'adjustment', 'other', ?, NULL, ?, ?, ?)`,
-      args: [otherId, tenantId, transactionDate, otherAdjustment, notes || "Other adjustment", ledgerId, now],
+      args: [otherId, tenantId, transactionDate, otherAdjustment, notes || "Other adjustment", documentId, now],
     });
     adjustmentIds.push(otherId);
   }
 
-  // Create ledger entry for the payment (payment_id is NULL for payment transactions)
+  // Create ledger entry for the payment (shares same document_id as adjustments)
   await db.execute({
-    sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, amount, payment_method, description, payment_id, created_at)
-          VALUES (?, ?, ?, 'payment', ?, ?, ?, NULL, ?)`,
-    args: [ledgerId, tenantId, transactionDate, amount, method, notes || "Payment received", now],
+    sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, amount, payment_method, description, document_id, created_at)
+          VALUES (?, ?, ?, 'payment', ?, ?, ?, ?, ?)`,
+    args: [ledgerId, tenantId, transactionDate, amount, method, notes || "Payment received", documentId, now],
   });
 
   // Calculate total available amount (existing credit + new payment + adjustments)
@@ -665,7 +666,7 @@ export async function GET(request: NextRequest) {
         tl.amount,
         tl.payment_method,
         tl.description,
-        tl.payment_id,
+        tl.document_id,
         tl.created_at
       FROM tenant_ledger tl
       JOIN tenants t ON tl.tenant_id = t.id
@@ -681,36 +682,23 @@ export async function GET(request: NextRequest) {
 
     const result = await db.execute({ sql, args });
 
-    // Group transactions: payments with their adjustments
-    const paymentsMap = new Map<string, any>(); // payment id -> payment transaction
-    const adjustmentsMap = new Map<string, any[]>(); // payment id -> array of adjustments
-    const standaloneTransactions: any[] = [];
+    // Group transactions by document_id
+    const documentMap = new Map<string | null, any[]>(); // document_id -> array of transactions
 
     result.rows.forEach((transaction: any) => {
-      if (transaction.type === 'payment') {
-        paymentsMap.set(transaction.id, transaction);
-        // Initialize adjustments array for this payment
-        if (!adjustmentsMap.has(transaction.id)) {
-          adjustmentsMap.set(transaction.id, []);
-        }
-      } else if (transaction.payment_id) {
-        // This is an adjustment linked to a payment
-        if (!adjustmentsMap.has(transaction.payment_id)) {
-          adjustmentsMap.set(transaction.payment_id, []);
-        }
-        adjustmentsMap.get(transaction.payment_id)!.push(transaction);
-      } else {
-        // Standalone transaction (credit, opening_balance, etc.)
-        standaloneTransactions.push(transaction);
+      const docId = transaction.document_id || transaction.id; // Use transaction ID as key if no document_id
+      if (!documentMap.has(docId)) {
+        documentMap.set(docId, []);
       }
+      documentMap.get(docId)!.push(transaction);
     });
 
-    // Process payments with their adjustments
-    const paymentTransactions = await Promise.all(
-      Array.from(paymentsMap.entries()).map(async ([paymentId, payment]) => {
-        const relatedAdjustments = adjustmentsMap.get(paymentId) || [];
-        const bundleTransactions = [payment, ...relatedAdjustments];
-        const transaction = payment;
+    // Process each document (may contain 1 or more transactions)
+    const transactionsWithDetails = await Promise.all(
+      Array.from(documentMap.entries()).map(async ([docId, bundleTransactions]) => {
+        // Use the payment as primary transaction, or first transaction if no payment
+        const primaryTransaction = bundleTransactions.find(t => t.type === 'payment') || bundleTransactions[0];
+        const transaction = primaryTransaction;
         // All ledger entry types that contribute to credit balance (3 core types)
         const creditTypes = ['payment', 'credit', 'adjustment'];
 
@@ -784,7 +772,7 @@ export async function GET(request: NextRequest) {
             appliedPeriods,
             appliedTo: appliedToMessage,
             creditRemaining: cumulativeCreditBalance,
-            paymentId: transaction.payment_id,
+            documentId: transaction.document_id,
             bundledTransactions: bundleTransactions.length > 1 ? bundleTransactions : undefined,
             adjustments: adjustments.length > 0 ? adjustments : undefined,
             totalAmount: bundleTransactions.length > 1 ? totalAmount : Number(transaction.amount),
@@ -796,93 +784,15 @@ export async function GET(request: NextRequest) {
           appliedPeriods: [],
           appliedTo: 'Other Transaction',
           creditRemaining: null,
-          paymentId: transaction.payment_id,
+          documentId: transaction.document_id,
           bundledTransactions: bundleTransactions.length > 1 ? bundleTransactions : undefined,
           totalAmount: Number(transaction.amount),
         };
       })
     );
 
-    // Process standalone transactions (credit, opening_balance, adjustments without payment_id)
-    const standaloneTransactionsWithDetails = await Promise.all(
-      standaloneTransactions.map(async (transaction: any) => {
-        const creditTypes = ['payment', 'credit', 'adjustment'];
-
-        if (creditTypes.includes(transaction.type)) {
-          // Get rent periods this ledger entry was applied to
-          const rentPayments = await db.execute({
-            sql: `SELECT for_period, rent_amount
-                  FROM rent_payments
-                  WHERE ledger_id = ?
-                  ORDER BY for_period`,
-            args: [transaction.id],
-          });
-
-          const appliedPeriods = rentPayments.rows.map((rp: any) => ({
-            period: rp.for_period,
-            amount: Number(rp.rent_amount),
-          }));
-
-          // Calculate CUMULATIVE credit balance at the time of this transaction
-          const ledgerUpToTransaction = await db.execute({
-            sql: `SELECT COALESCE(SUM(amount), 0) as total
-                  FROM tenant_ledger
-                  WHERE tenant_id = ?
-                    AND (transaction_date < ? OR (transaction_date = ? AND created_at <= ?))`,
-            args: [transaction.tenant_id, transaction.transaction_date, transaction.transaction_date, transaction.created_at],
-          });
-
-          const rentUpToTransaction = await db.execute({
-            sql: `SELECT COALESCE(SUM(rp.rent_amount), 0) as total
-                  FROM rent_payments rp
-                  JOIN tenant_ledger tl ON rp.ledger_id = tl.id
-                  WHERE rp.tenant_id = ?
-                    AND (tl.transaction_date < ? OR (tl.transaction_date = ? AND tl.created_at <= ?))`,
-            args: [transaction.tenant_id, transaction.transaction_date, transaction.transaction_date, transaction.created_at],
-          });
-
-          const ledgerTotal = Number(ledgerUpToTransaction.rows[0].total);
-          const rentTotal = Number(rentUpToTransaction.rows[0].total);
-          const cumulativeCreditBalance = ledgerTotal - rentTotal;
-
-          // Set appropriate appliedTo message
-          let appliedToMessage = 'Credit Balance';
-          if (appliedPeriods.length > 0) {
-            appliedToMessage = appliedPeriods.map(p => `${formatPeriod(p.period as string)} (₹${p.amount})`).join(', ');
-          } else if (transaction.type === 'credit') {
-            appliedToMessage = 'Credit Applied to Rent';
-          } else if (transaction.type === 'adjustment') {
-            const subtypeLabel = transaction.subtype
-              ? transaction.subtype.charAt(0).toUpperCase() + transaction.subtype.slice(1)
-              : 'Adjustment';
-            appliedToMessage = `${subtypeLabel} Applied`;
-          }
-
-          return {
-            ...transaction,
-            appliedPeriods,
-            appliedTo: appliedToMessage,
-            creditRemaining: cumulativeCreditBalance,
-            paymentId: transaction.payment_id,
-            totalAmount: Number(transaction.amount),
-          };
-        }
-
-        return {
-          ...transaction,
-          appliedPeriods: [],
-          appliedTo: 'Other Transaction',
-          creditRemaining: null,
-          paymentId: transaction.payment_id,
-          totalAmount: Number(transaction.amount),
-        };
-      })
-    );
-
-    // Combine and sort all transactions
-    const allTransactions = [...paymentTransactions, ...standaloneTransactionsWithDetails];
-    allTransactions.sort((a, b) => {
-      // Sort by date DESC, then by created_at DESC
+    // Sort all transactions by date DESC, then created_at DESC
+    transactionsWithDetails.sort((a, b) => {
       if (a.transaction_date !== b.transaction_date) {
         return b.transaction_date.localeCompare(a.transaction_date);
       }
@@ -890,7 +800,7 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json({
-      transactions: allTransactions,
+      transactions: transactionsWithDetails,
     });
   } catch (error) {
     console.error("Error fetching transactions:", error);
