@@ -43,7 +43,7 @@ interface Transaction {
   description: string | null;
   appliedTo?: string;
   creditRemaining?: number | null;
-  bundleId?: string | null;
+  paymentId?: string | null;
   adjustments?: Adjustment[];
   totalAmount?: number;
 }

@@ -1,7 +1,7 @@
--- Migration Script: Add bundle_id column to tenant_ledger
--- This allows grouping related transactions (payment + adjustments) together
+-- Migration Script: Add payment_id column to tenant_ledger
+-- This allows linking adjustments to their parent payment transaction
 
--- Step 1: Create new table with bundle_id column
+-- Step 1: Create new table with payment_id column
 CREATE TABLE tenant_ledger_new (
     id TEXT PRIMARY KEY,
     tenant_id TEXT NOT NULL,
@@ -11,12 +11,12 @@ CREATE TABLE tenant_ledger_new (
     amount REAL NOT NULL,
     payment_method TEXT,
     description TEXT,
-    bundle_id TEXT,
+    payment_id TEXT,
     created_at TEXT NOT NULL,
     FOREIGN KEY (tenant_id) REFERENCES tenants(id)
 );
 
--- Step 2: Copy all existing data (bundle_id will be NULL for old records)
+-- Step 2: Copy all existing data (payment_id will be NULL for old records)
 INSERT INTO tenant_ledger_new
 SELECT
     id,
@@ -27,7 +27,7 @@ SELECT
     amount,
     payment_method,
     description,
-    NULL as bundle_id,
+    NULL as payment_id,
     created_at
 FROM tenant_ledger;
 

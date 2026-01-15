@@ -1,8 +1,8 @@
 /**
- * Migration Script: Add bundle_id column to tenant_ledger table
+ * Migration Script: Add payment_id column to tenant_ledger table
  *
- * This script adds a bundle_id column to link related transactions together
- * (e.g., payment + adjustments recorded in a single operation)
+ * This script adds a payment_id column to link adjustments to their parent payment
+ * (e.g., adjustments reference the payment transaction they belong to)
  */
 
 import { createClient } from "@libsql/client";
@@ -23,9 +23,9 @@ const db = createClient({
 
 async function migrate() {
   try {
-    console.log("🔄 Starting migration: Adding bundle_id column to tenant_ledger...");
+    console.log("🔄 Starting migration: Adding payment_id column to tenant_ledger...");
 
-    // Check if bundle_id column already exists
+    // Check if payment_id column already exists
     const schemaCheck = await db.execute({
       sql: "SELECT sql FROM sqlite_master WHERE type='table' AND name='tenant_ledger'",
       args: [],
@@ -37,8 +37,8 @@ async function migrate() {
     }
 
     const tableSchema = schemaCheck.rows[0].sql;
-    if (tableSchema.includes('bundle_id')) {
-      console.log("✅ bundle_id column already exists. No migration needed.");
+    if (tableSchema.includes('payment_id')) {
+      console.log("✅ payment_id column already exists. No migration needed.");
       process.exit(0);
     }
 
@@ -46,8 +46,8 @@ async function migrate() {
     console.log(tableSchema);
     console.log();
 
-    // Step 1: Create new table with bundle_id column
-    console.log("1️⃣  Creating new table with bundle_id column...");
+    // Step 1: Create new table with payment_id column
+    console.log("1️⃣  Creating new table with payment_id column...");
     await db.execute({
       sql: `CREATE TABLE tenant_ledger_new (
         id TEXT PRIMARY KEY,
@@ -58,7 +58,7 @@ async function migrate() {
         amount REAL NOT NULL,
         payment_method TEXT,
         description TEXT,
-        bundle_id TEXT,
+        payment_id TEXT,
         created_at TEXT NOT NULL,
         FOREIGN KEY (tenant_id) REFERENCES tenants(id)
       )`,
@@ -79,7 +79,7 @@ async function migrate() {
               amount,
               payment_method,
               description,
-              NULL as bundle_id,
+              NULL as payment_id,
               created_at
             FROM tenant_ledger`,
       args: [],
@@ -113,9 +113,9 @@ async function migrate() {
     console.log();
 
     console.log("✅ Migration completed successfully!");
-    console.log("ℹ️  The bundle_id column has been added to tenant_ledger table");
-    console.log("ℹ️  Existing records have bundle_id set to NULL");
-    console.log("ℹ️  New transactions with adjustments will be bundled together");
+    console.log("ℹ️  The payment_id column has been added to tenant_ledger table");
+    console.log("ℹ️  Existing records have payment_id set to NULL");
+    console.log("ℹ️  New adjustments will reference their parent payment transaction");
 
   } catch (error) {
     console.error("❌ Migration failed:", error);
