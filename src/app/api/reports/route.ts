@@ -99,7 +99,7 @@ export async function GET() {
     // Withdrawals for current month
     const withdrawalsQuery = await db.execute({
       sql: `SELECT COALESCE(SUM(amount), 0) as total
-            FROM operator_withdrawals
+            FROM admin_withdrawals
             WHERE withdrawal_date >= ? AND withdrawal_date < ?`,
       args: [currentMonthStart, nextMonthStart],
     });
@@ -158,7 +158,7 @@ export async function GET() {
       // Withdrawals for this month
       const monthWithdrawals = await db.execute({
         sql: `SELECT COALESCE(SUM(amount), 0) as total
-              FROM operator_withdrawals
+              FROM admin_withdrawals
               WHERE withdrawal_date >= ? AND withdrawal_date < ?`,
         args: [monthStart, nextStart],
       });
