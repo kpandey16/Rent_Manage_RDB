@@ -171,8 +171,8 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Credit Balance</p>
-              <p className={`text-lg font-semibold ${tenant.creditBalance > 0 ? 'text-green-600' : ''}`}>
-                {tenant.creditBalance > 0 ? `+₹${tenant.creditBalance.toLocaleString("en-IN")}` : "₹0"}
+              <p className={`text-lg font-semibold ${tenant.creditBalance > 0 ? 'text-green-600' : tenant.creditBalance < 0 ? 'text-red-600' : ''}`}>
+                {tenant.creditBalance > 0 ? '+' : tenant.creditBalance < 0 ? '-' : ''}₹{Math.abs(tenant.creditBalance).toLocaleString("en-IN")}
               </p>
             </div>
             <div>
