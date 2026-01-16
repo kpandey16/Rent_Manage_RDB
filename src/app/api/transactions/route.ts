@@ -744,7 +744,15 @@ export async function GET(request: NextRequest) {
           // Set appropriate appliedTo message based on type and subtype
           let appliedToMessage = 'Credit Balance';
           if (appliedPeriods.length > 0) {
-            appliedToMessage = appliedPeriods.map(p => `${formatPeriod(p.period as string)} (₹${p.amount})`).join(', ');
+            // Show as range if multiple periods, otherwise show single period
+            if (appliedPeriods.length === 1) {
+              appliedToMessage = `${formatPeriod(appliedPeriods[0].period as string)} (₹${appliedPeriods[0].amount})`;
+            } else {
+              const firstPeriod = formatPeriod(appliedPeriods[0].period as string);
+              const lastPeriod = formatPeriod(appliedPeriods[appliedPeriods.length - 1].period as string);
+              const totalAmount = appliedPeriods.reduce((sum, p) => sum + p.amount, 0);
+              appliedToMessage = `${firstPeriod} to ${lastPeriod} (₹${totalAmount})`;
+            }
           } else if (transaction.type === 'credit') {
             appliedToMessage = 'Credit Applied to Rent';
           } else if (transaction.type === 'adjustment') {
