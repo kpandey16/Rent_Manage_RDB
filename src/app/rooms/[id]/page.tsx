@@ -131,15 +131,7 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
         <CardContent className="p-4 space-y-3">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">Current Rent</p>
-                <UpdateRentForm
-                  roomId={room.id}
-                  roomCode={room.code}
-                  currentRent={room.currentRent}
-                  onSuccess={handleRoomAllocated}
-                />
-              </div>
+              <p className="text-sm text-muted-foreground">Current Rent</p>
               <p className="text-2xl font-bold">₹{room.currentRent.toLocaleString("en-IN")}</p>
               <p className="text-xs text-muted-foreground">per month</p>
             </div>
@@ -168,10 +160,18 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
       {/* Rent History */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <IndianRupee className="h-4 w-4" />
-            Rent History
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <IndianRupee className="h-4 w-4" />
+              Rent History
+            </CardTitle>
+            <UpdateRentForm
+              roomId={room.id}
+              roomCode={room.code}
+              currentRent={room.currentRent}
+              onSuccess={handleRoomAllocated}
+            />
+          </div>
         </CardHeader>
         <CardContent>
           {room.rentHistory.length === 0 ? (
