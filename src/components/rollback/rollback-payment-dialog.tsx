@@ -36,44 +36,53 @@ export function RollbackPaymentDialog({
 
   // Validate when dialog opens
   const handleOpenChange = async (newOpen: boolean) => {
+    console.log("🚪 Dialog open state changing to:", newOpen);
     onOpenChange(newOpen);
 
     if (newOpen && !validation) {
+      console.log("🔄 Dialog opened and no validation data, calling validateRollback");
       await validateRollback();
     }
 
     // Reset when closing
     if (!newOpen) {
+      console.log("🔄 Dialog closing, resetting state");
       setValidation(null);
       setReason("");
     }
   };
 
   const validateRollback = async () => {
+    console.log("🔍 Starting validation for ledgerId:", ledgerId);
     setValidating(true);
     try {
+      console.log("📡 Sending validation request...");
       const response = await fetch("/api/rollback/validate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ledgerId }),
       });
 
+      console.log("📥 Response status:", response.status, response.statusText);
       const data = await response.json();
+      console.log("📦 Response data:", data);
 
       if (!response.ok) {
-        console.error("Validation failed:", data);
+        console.error("❌ Validation API error - Status:", response.status, "Data:", data);
         toast.error(data.error || "Failed to validate rollback");
-        onOpenChange(false);
+        // Don't close dialog - let user see the error
         return;
       }
 
-      console.log("Validation result:", data);
+      console.log("✅ Validation successful, setting validation state");
       setValidation(data);
+      console.log("✅ Validation state set:", data);
     } catch (error) {
-      console.error("Validation error:", error);
-      toast.error("Failed to validate rollback");
-      onOpenChange(false);
+      console.error("❌ Validation network error:", error);
+      toast.error("Network error: Failed to validate rollback");
+      // Don't close dialog - let user see the error
     } finally {
+      console.log("🏁 Validation complete, setting validating to false");
       setValidating(false);
     }
   };
@@ -115,6 +124,8 @@ export function RollbackPaymentDialog({
       setLoading(false);
     }
   };
+
+  console.log("🎨 Rendering dialog - open:", open, "validating:", validating, "validation:", validation ? "present" : "null");
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
