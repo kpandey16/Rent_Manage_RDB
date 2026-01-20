@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useTranslations } from "next-intl";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +30,7 @@ export function RollbackPaymentDialog({
   ledgerId,
   onSuccess,
 }: RollbackPaymentDialogProps) {
+  const t = useTranslations();
   const [loading, setLoading] = useState(false);
   const [validating, setValidating] = useState(false);
   const [validation, setValidation] = useState<any>(null);
@@ -73,7 +75,7 @@ export function RollbackPaymentDialog({
 
       if (!response.ok) {
         console.error("❌ Validation API error - Status:", response.status, "Data:", data);
-        toast.error(data.error || "Failed to validate rollback");
+        toast.error(data.error || t('rollback.rollbackError'));
         // Don't close dialog - let user see the error
         return;
       }
@@ -83,7 +85,7 @@ export function RollbackPaymentDialog({
       console.log("✅ Validation state set:", data);
     } catch (error) {
       console.error("❌ Validation network error:", error);
-      toast.error("Network error: Failed to validate rollback");
+      toast.error(t('rollback.rollbackError'));
       // Don't close dialog - let user see the error
     } finally {
       console.log("🏁 Validation complete, setting validating to false");
@@ -93,7 +95,7 @@ export function RollbackPaymentDialog({
 
   const handleRollback = async () => {
     if (!reason.trim() || reason.trim().length < 10) {
-      toast.error("Please provide a detailed reason (at least 10 characters)");
+      toast.error(t('rollback.reasonMinLength'));
       return;
     }
 
@@ -111,11 +113,11 @@ export function RollbackPaymentDialog({
       const data = await response.json();
 
       if (!response.ok) {
-        toast.error(data.error || "Failed to rollback payment");
+        toast.error(data.error || t('rollback.rollbackError'));
         return;
       }
 
-      toast.success(data.message || "Payment rolled back successfully");
+      toast.success(data.message || t('rollback.rollbackSuccess'));
       onOpenChange(false);
 
       if (onSuccess) {
@@ -123,7 +125,7 @@ export function RollbackPaymentDialog({
       }
     } catch (error) {
       console.error("Rollback error:", error);
-      toast.error("An error occurred during rollback");
+      toast.error(t('rollback.rollbackError'));
     } finally {
       setLoading(false);
     }
@@ -137,21 +139,21 @@ export function RollbackPaymentDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-destructive" />
-            Rollback Payment Confirmation
+            {t('rollback.title')}
           </DialogTitle>
           <DialogDescription>
-            This action will delete the payment and mark all associated rent periods as unpaid.
+            {t('rollback.description')}
           </DialogDescription>
         </DialogHeader>
 
         {validating ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            <p className="ml-3 text-muted-foreground">Validating payment...</p>
+            <p className="ml-3 text-muted-foreground">{t('rollback.validating')}</p>
           </div>
         ) : !validation ? (
           <div className="flex items-center justify-center py-8">
-            <p className="text-muted-foreground">No validation data available</p>
+            <p className="text-muted-foreground">{t('rollback.noValidationData')}</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -160,7 +162,7 @@ export function RollbackPaymentDialog({
               <Alert variant="destructive">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>
-                  <div className="font-semibold mb-1">Cannot Rollback Payment:</div>
+                  <div className="font-semibold mb-1">{t('rollback.cannotRollback')}</div>
                   <ul className="list-disc list-inside space-y-1">
                     {validation.errors.map((error: string, index: number) => (
                       <li key={index} className="text-sm">{error}</li>
@@ -175,29 +177,29 @@ export function RollbackPaymentDialog({
               <>
                 <div className="space-y-3 rounded-lg border p-4">
                   <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div className="text-muted-foreground">Payment Amount:</div>
+                    <div className="text-muted-foreground">{t('rollback.paymentAmount')}:</div>
                     <div className="font-medium">
                       ₹{validation.rollbackDetails.paymentAmount.toLocaleString("en-IN")}
                     </div>
 
-                    <div className="text-muted-foreground">Payment Method:</div>
+                    <div className="text-muted-foreground">{t('rollback.paymentMethod')}:</div>
                     <div className="font-medium uppercase">
                       {validation.rollbackDetails.paymentMethod}
                     </div>
 
-                    <div className="text-muted-foreground">Periods Affected:</div>
+                    <div className="text-muted-foreground">{t('rollback.periodsAffected')}:</div>
                     <div className="font-medium">
                       {validation.rollbackDetails.periods.join(", ")}
                     </div>
 
-                    <div className="text-muted-foreground">Total Rent:</div>
+                    <div className="text-muted-foreground">{t('rollback.totalRent')}:</div>
                     <div className="font-medium">
                       ₹{validation.rollbackDetails.totalRentAmount.toLocaleString("en-IN")}
                     </div>
 
                     {validation.rollbackDetails.hasAdjustments && (
                       <>
-                        <div className="text-muted-foreground">Adjustments:</div>
+                        <div className="text-muted-foreground">{t('rollback.adjustments')}:</div>
                         <div className="font-medium text-orange-600">
                           ₹{validation.rollbackDetails.adjustmentAmount?.toLocaleString("en-IN")}
                         </div>
@@ -225,26 +227,24 @@ export function RollbackPaymentDialog({
                   <>
                     <div className="space-y-2">
                       <Label htmlFor="reason">
-                        Reason for Rollback <span className="text-destructive">*</span>
+                        {t('rollback.reason')} <span className="text-destructive">*</span>
                       </Label>
                       <Input
                         id="reason"
-                        placeholder="e.g., Duplicate entry, incorrect amount, tenant refund"
+                        placeholder={t('rollback.reasonPlaceholder')}
                         value={reason}
                         onChange={(e) => setReason(e.target.value)}
                         disabled={loading}
                       />
                       <p className="text-xs text-muted-foreground">
-                        Minimum 10 characters required
+                        {t('rollback.reasonMinLength')}
                       </p>
                     </div>
 
                     <Alert variant="destructive">
                       <AlertTriangle className="h-4 w-4" />
                       <AlertDescription className="text-sm">
-                        <strong>Warning:</strong> This action cannot be undone. The payment will be
-                        permanently deleted from the database. Make sure to refund the physical
-                        cash/amount to the tenant.
+                        <strong>{t('rollback.warning')}:</strong> {t('rollback.warningMessage')}
                       </AlertDescription>
                     </Alert>
                   </>
@@ -260,7 +260,7 @@ export function RollbackPaymentDialog({
             onClick={() => onOpenChange(false)}
             disabled={loading}
           >
-            Cancel
+            {t('common.cancel')}
           </Button>
           {validation && (
             <Button
@@ -276,10 +276,10 @@ export function RollbackPaymentDialog({
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Rolling Back...
+                  {t('common.loading')}
                 </>
               ) : (
-                "Confirm Rollback"
+                t('rollback.confirmRollback')
               )}
             </Button>
           )}
