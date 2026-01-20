@@ -160,11 +160,13 @@ export async function validatePaymentRollback(
     // Step 2: Must be payment type
     if (p.type !== 'payment') {
       errors.push(`Cannot rollback ${p.type} type entries. Only cash/UPI payments can be rolled back.`);
+      // Still continue to show details
     }
 
     // Step 3: Must be cash or UPI method
     if (p.payment_method !== 'cash' && p.payment_method !== 'upi') {
-      errors.push(`Payment method '${p.payment_method}' cannot be rolled back. Only cash/UPI payments are eligible.`);
+      errors.push(`Payment method '${p.payment_method || 'unknown'}' cannot be rolled back. Only cash/UPI payments are eligible.`);
+      // Still continue to show details
     }
 
     // Step 4: Must be tenant's most recent payment

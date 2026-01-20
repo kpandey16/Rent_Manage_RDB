@@ -148,8 +148,8 @@ export function RollbackPaymentDialog({
               </Alert>
             )}
 
-            {/* Show rollback details if can rollback */}
-            {validation.canRollback && validation.rollbackDetails && (
+            {/* Show rollback details - ALWAYS show if available */}
+            {validation.rollbackDetails && (
               <>
                 <div className="space-y-3 rounded-lg border p-4">
                   <div className="grid grid-cols-2 gap-2 text-sm">
@@ -198,31 +198,35 @@ export function RollbackPaymentDialog({
                   </Alert>
                 )}
 
-                {/* Reason input */}
-                <div className="space-y-2">
-                  <Label htmlFor="reason">
-                    Reason for Rollback <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    id="reason"
-                    placeholder="e.g., Duplicate entry, incorrect amount, tenant refund"
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                    disabled={loading}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Minimum 10 characters required
-                  </p>
-                </div>
+                {/* Reason input - only show if can rollback */}
+                {validation.canRollback && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="reason">
+                        Reason for Rollback <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        id="reason"
+                        placeholder="e.g., Duplicate entry, incorrect amount, tenant refund"
+                        value={reason}
+                        onChange={(e) => setReason(e.target.value)}
+                        disabled={loading}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Minimum 10 characters required
+                      </p>
+                    </div>
 
-                <Alert variant="destructive">
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertDescription className="text-sm">
-                    <strong>Warning:</strong> This action cannot be undone. The payment will be
-                    permanently deleted from the database. Make sure to refund the physical
-                    cash/amount to the tenant.
-                  </AlertDescription>
-                </Alert>
+                    <Alert variant="destructive">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertDescription className="text-sm">
+                        <strong>Warning:</strong> This action cannot be undone. The payment will be
+                        permanently deleted from the database. Make sure to refund the physical
+                        cash/amount to the tenant.
+                      </AlertDescription>
+                    </Alert>
+                  </>
+                )}
               </>
             )}
           </div>
