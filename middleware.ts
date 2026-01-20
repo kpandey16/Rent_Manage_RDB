@@ -1,23 +1,27 @@
-import createMiddleware from 'next-intl/middleware';
+import { NextRequest, NextResponse } from 'next/server';
 
-// Define locales directly here to avoid edge runtime issues
 export const locales = ['en', 'hi'] as const;
+export const defaultLocale = 'en';
 
-export default createMiddleware({
-  // A list of all locales that are supported
-  locales: locales,
+export function middleware(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
 
-  // Used when no locale matches
-  defaultLocale: 'en',
+  // Check if pathname is missing locale
+  const pathnameIsMissingLocale = locales.every(
+    (locale) => !pathname.startsWith(`/${locale}/`) && pathname !== `/${locale}`
+  );
 
-  // Always use locale prefix (e.g., /en/dashboard, /hi/dashboard)
-  localePrefix: 'always'
-});
+  // Redirect if there is no locale
+  if (pathnameIsMissingLocale) {
+    return NextResponse.redirect(
+      new URL(`/${defaultLocale}${pathname}`, request.url)
+    );
+  }
+
+  return NextResponse.next();
+}
 
 export const config = {
-  // Match all pathnames except for
-  // - api routes
-  // - _next (Next.js internals)
-  // - files with extensions (e.g. favicon.ico)
-  matcher: ['/((?!api|_next|.*\\..*).*)']
+  // Matcher ignoring `/_next/` and `/api/`
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|.*\\..*).*)']
 };
