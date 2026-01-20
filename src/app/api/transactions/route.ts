@@ -6,7 +6,7 @@ import { getTenantRentForPeriod } from "@/lib/rent-calculator";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { tenantId, amount, type, method, date, notes } = body;
+    const { tenantId, amount, type, method, date, notes, discount, maintenanceDeduction, otherAdjustment, autoApplyToRent } = body;
 
     // Validation
     if (!tenantId || amount === undefined || amount === null || !type || !date) {
@@ -40,32 +40,31 @@ export async function POST(request: NextRequest) {
     const now = getCurrentDateTime();
     const transactionDate = date || now.split(' ')[0];
 
-    // Handle different transaction types
+    // Handle different transaction types (3 core types only)
     switch (type) {
       case "payment":
-        return await handlePayment(tenantId, amount, method, transactionDate, notes, now);
-
-      case "security_deposit_add":
-        return await handleSecurityDepositAdd(tenantId, amount, transactionDate, notes, now);
-
-      case "security_deposit_withdraw":
-        return await handleSecurityDepositWithdraw(tenantId, amount, transactionDate, notes, now);
-
-      case "deposit_used":
-        return await handleDepositUsedForRent(tenantId, amount, transactionDate, notes, now);
+        return await handlePayment(
+          tenantId,
+          amount,
+          method,
+          transactionDate,
+          notes,
+          now,
+          discount || 0,
+          maintenanceDeduction || 0,
+          otherAdjustment || 0,
+          autoApplyToRent !== false // default true
+        );
 
       case "credit":
         return await handleCreditApplied(tenantId, amount, transactionDate, notes, now);
 
-      case "discount":
-        return await handleDiscount(tenantId, amount, transactionDate, notes, now);
-
-      case "maintenance":
-        return await handleMaintenance(tenantId, amount, transactionDate, notes, now);
+      case "adjustment":
+        return await handleAdjustment(tenantId, amount, transactionDate, notes, now);
 
       default:
         return NextResponse.json(
-          { error: "Invalid transaction type" },
+          { error: "Invalid transaction type. Use: payment, credit, or adjustment" },
           { status: 400 }
         );
     }
@@ -85,12 +84,19 @@ async function handlePayment(
   method: string,
   transactionDate: string,
   notes: string | undefined,
-  now: string
+  now: string,
+  discount: number = 0,
+  maintenanceDeduction: number = 0,
+  otherAdjustment: number = 0,
+  autoApplyToRent: boolean = true
 ) {
   const ledgerId = generateId();
+  const documentId = generateId(); // Document ID for grouping all related transactions
   const appliedPeriods: string[] = [];
+  const adjustmentIds: string[] = [];
+  const totalAdjustments = discount + maintenanceDeduction + otherAdjustment;
 
-  // Get existing credit balance BEFORE creating the ledger entry
+  // Get existing credit balance BEFORE creating any entries
   const existingCreditResult = await db.execute({
     sql: `SELECT
             COALESCE(SUM(tl.amount), 0) as ledger_total,
@@ -104,15 +110,67 @@ async function handlePayment(
   const paymentsTotal = Number(existingCreditResult.rows[0].payments_total);
   const existingCredit = ledgerTotal - paymentsTotal;
 
-  // Create ledger entry for the new payment
+  // ATOMIC BUNDLE: Create all adjustment entries first (all use 'adjustment' type with subtype)
+  // All transactions in the bundle share the same document_id
+  if (discount > 0) {
+    const discountId = generateId();
+    await db.execute({
+      sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, subtype, amount, payment_method, description, document_id, created_at)
+            VALUES (?, ?, ?, 'adjustment', 'discount', ?, NULL, ?, ?, ?)`,
+      args: [discountId, tenantId, transactionDate, discount, notes || "Discount applied", documentId, now],
+    });
+    adjustmentIds.push(discountId);
+  }
+
+  if (maintenanceDeduction > 0) {
+    const maintenanceId = generateId();
+    await db.execute({
+      sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, subtype, amount, payment_method, description, document_id, created_at)
+            VALUES (?, ?, ?, 'adjustment', 'maintenance', ?, NULL, ?, ?, ?)`,
+      args: [maintenanceId, tenantId, transactionDate, maintenanceDeduction, notes || "Maintenance expense deduction", documentId, now],
+    });
+    adjustmentIds.push(maintenanceId);
+  }
+
+  if (otherAdjustment > 0) {
+    const otherId = generateId();
+    await db.execute({
+      sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, subtype, amount, payment_method, description, document_id, created_at)
+            VALUES (?, ?, ?, 'adjustment', 'other', ?, NULL, ?, ?, ?)`,
+      args: [otherId, tenantId, transactionDate, otherAdjustment, notes || "Other adjustment", documentId, now],
+    });
+    adjustmentIds.push(otherId);
+  }
+
+  // Create ledger entry for the payment (shares same document_id as adjustments)
   await db.execute({
-    sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, amount, payment_method, description, created_at)
-          VALUES (?, ?, ?, 'payment', ?, ?, ?, ?)`,
-    args: [ledgerId, tenantId, transactionDate, amount, method, notes || "Payment received", now],
+    sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, amount, payment_method, description, document_id, created_at)
+          VALUES (?, ?, ?, 'payment', ?, ?, ?, ?, ?)`,
+    args: [ledgerId, tenantId, transactionDate, amount, method, notes || "Payment received", documentId, now],
   });
 
-  // Calculate total available amount (existing credit + new payment)
-  let remainingAmount = existingCredit + amount;
+  // Calculate total available amount (existing credit + new payment + adjustments)
+  let remainingAmount = existingCredit + amount + totalAdjustments;
+
+  // If autoApplyToRent is false, don't apply to rent - just record as credit
+  if (!autoApplyToRent) {
+    let message = "Payment recorded successfully";
+    if (totalAdjustments > 0) {
+      message += `. Applied ₹${totalAdjustments.toLocaleString("en-IN")} in adjustments`;
+    }
+    message += `. Total credit: ₹${remainingAmount.toLocaleString("en-IN")}`;
+
+    return NextResponse.json(
+      {
+        message,
+        transactionId: ledgerId,
+        adjustmentIds,
+        appliedTo: "credit",
+        creditAmount: remainingAmount,
+      },
+      { status: 201 }
+    );
+  }
 
   // Get tenant's room allocations to find earliest move-in date
   const roomsResult = await db.execute({
@@ -124,12 +182,18 @@ async function handlePayment(
 
   if (roomsResult.rows.length === 0) {
     // No active rooms - payment goes to credit
+    let message = "Payment recorded as credit (no active rooms allocated)";
+    if (totalAdjustments > 0) {
+      message += `. Applied ₹${totalAdjustments.toLocaleString("en-IN")} in adjustments`;
+    }
+
     return NextResponse.json(
       {
-        message: "Payment recorded as credit (no active rooms allocated)",
+        message,
         transactionId: ledgerId,
+        adjustmentIds,
         appliedTo: "credit",
-        creditAmount: amount,
+        creditAmount: remainingAmount,
       },
       { status: 201 }
     );
@@ -198,11 +262,22 @@ async function handlePayment(
   // Build response message
   let message = "Payment recorded successfully";
 
+  // Show adjustments if any
+  if (totalAdjustments > 0) {
+    const adjustmentParts: string[] = [];
+    if (discount > 0) adjustmentParts.push(`₹${discount.toLocaleString("en-IN")} discount`);
+    if (maintenanceDeduction > 0) adjustmentParts.push(`₹${maintenanceDeduction.toLocaleString("en-IN")} maintenance`);
+    if (otherAdjustment > 0) adjustmentParts.push(`₹${otherAdjustment.toLocaleString("en-IN")} adjustment`);
+
+    message += `. Applied adjustments: ${adjustmentParts.join(", ")}`;
+  }
+
   // Show how the payment was used
   if (appliedPeriods.length > 0) {
     // Payment was applied to rent
-    if (existingCredit > 0) {
-      message += `. Used ₹${existingCredit.toLocaleString("en-IN")} existing credit + ₹${amount.toLocaleString("en-IN")} new payment`;
+    if (existingCredit > 0 || totalAdjustments > 0) {
+      const totalApplied = amount + (totalAdjustments > 0 ? totalAdjustments : 0) + (existingCredit > 0 ? existingCredit : 0);
+      message += `. Used ₹${totalApplied.toLocaleString("en-IN")} total (payment${totalAdjustments > 0 ? " + adjustments" : ""}${existingCredit > 0 ? " + existing credit" : ""})`;
     } else if (existingCredit < 0) {
       // Had negative balance (dues/opening balance)
       const duesAmount = Math.abs(existingCredit);
@@ -227,14 +302,15 @@ async function handlePayment(
     if (existingCredit < 0) {
       // Had negative balance (dues/opening balance)
       const duesAmount = Math.abs(existingCredit);
-      if (amount >= duesAmount) {
+      const totalReceived = amount + totalAdjustments;
+      if (totalReceived >= duesAmount) {
         message += `. Cleared ₹${duesAmount.toLocaleString("en-IN")} opening dues. Added to credit: ₹${remainingAmount.toLocaleString("en-IN")}`;
       } else {
-        message += `. Partially cleared opening dues (₹${amount.toLocaleString("en-IN")} of ₹${duesAmount.toLocaleString("en-IN")})`;
+        message += `. Partially cleared opening dues (₹${totalReceived.toLocaleString("en-IN")} of ₹${duesAmount.toLocaleString("en-IN")})`;
       }
     } else {
       // Payment went to credit (insufficient for full month rent)
-      message += `. Added to credit balance: ₹${amount.toLocaleString("en-IN")}. Total credit: ₹${remainingAmount.toLocaleString("en-IN")}`;
+      message += `. Added to credit balance: ₹${(amount + totalAdjustments).toLocaleString("en-IN")}. Total credit: ₹${remainingAmount.toLocaleString("en-IN")}`;
     }
   }
 
@@ -242,9 +318,11 @@ async function handlePayment(
     {
       message,
       transactionId: ledgerId,
+      adjustmentIds,
       appliedPeriods,
       creditAmount: remainingAmount,
       existingCreditUsed: existingCredit,
+      totalAdjustments,
     },
     { status: 201 }
   );
@@ -543,50 +621,28 @@ async function handleCreditApplied(
   );
 }
 
-// Handle discount
-async function handleDiscount(
+// Handle adjustment (unified: discount, maintenance, other)
+async function handleAdjustment(
   tenantId: string,
   amount: number,
   transactionDate: string,
   notes: string | undefined,
-  now: string
+  now: string,
+  subtype: string = 'other'
 ) {
   const ledgerId = generateId();
 
   await db.execute({
-    sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, amount, description, created_at)
-          VALUES (?, ?, ?, 'discount', ?, ?, ?)`,
-    args: [ledgerId, tenantId, transactionDate, amount, notes || "Discount applied", now],
+    sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, subtype, amount, description, created_at)
+          VALUES (?, ?, ?, 'adjustment', ?, ?, ?, ?)`,
+    args: [ledgerId, tenantId, transactionDate, subtype, amount, notes || "Adjustment applied", now],
   });
+
+  const categoryLabel = subtype.charAt(0).toUpperCase() + subtype.slice(1);
 
   return NextResponse.json(
     {
-      message: "Discount applied successfully",
-      transactionId: ledgerId,
-    },
-    { status: 201 }
-  );
-}
-
-// Handle maintenance adjustment
-async function handleMaintenance(
-  tenantId: string,
-  amount: number,
-  transactionDate: string,
-  notes: string | undefined,
-  now: string
-) {
-  const ledgerId = generateId();
-
-  await db.execute({
-    sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, amount, description, created_at)
-          VALUES (?, ?, ?, 'maintenance', ?, ?, ?)`,
-    args: [ledgerId, tenantId, transactionDate, amount, notes || "Maintenance adjustment", now],
-  });
-
-  return NextResponse.json(
-    {
-      message: "Maintenance adjustment recorded successfully",
+      message: `${categoryLabel} recorded successfully`,
       transactionId: ledgerId,
     },
     { status: 201 }
@@ -606,9 +662,11 @@ export async function GET(request: NextRequest) {
         t.name as tenant_name,
         tl.transaction_date,
         tl.type,
+        tl.subtype,
         tl.amount,
         tl.payment_method,
         tl.description,
+        tl.document_id,
         tl.created_at
       FROM tenant_ledger tl
       JOIN tenants t ON tl.tenant_id = t.id
@@ -624,11 +682,28 @@ export async function GET(request: NextRequest) {
 
     const result = await db.execute({ sql, args });
 
-    // For each transaction, fetch applied rent periods and calculate TOTAL credit balance at that time
+    // Group transactions by document_id
+    const documentMap = new Map<string | null, any[]>(); // document_id -> array of transactions
+
+    result.rows.forEach((transaction: any) => {
+      const docId = transaction.document_id || transaction.id; // Use transaction ID as key if no document_id
+      if (!documentMap.has(docId)) {
+        documentMap.set(docId, []);
+      }
+      documentMap.get(docId)!.push(transaction);
+    });
+
+    // Process each document (may contain 1 or more transactions)
     const transactionsWithDetails = await Promise.all(
-      result.rows.map(async (transaction: any) => {
-        if (transaction.type === 'payment' || transaction.type === 'credit' || transaction.type === 'maintenance') {
-          // Get rent periods this payment/credit/maintenance was applied to
+      Array.from(documentMap.entries()).map(async ([docId, bundleTransactions]) => {
+        // Use the payment as primary transaction, or first transaction if no payment
+        const primaryTransaction = bundleTransactions.find(t => t.type === 'payment') || bundleTransactions[0];
+        const transaction = primaryTransaction;
+        // All ledger entry types that contribute to credit balance (3 core types)
+        const creditTypes = ['payment', 'credit', 'adjustment'];
+
+        if (creditTypes.includes(transaction.type)) {
+          // Get rent periods this ledger entry was applied to
           const rentPayments = await db.execute({
             sql: `SELECT for_period, rent_amount
                   FROM rent_payments
@@ -666,25 +741,71 @@ export async function GET(request: NextRequest) {
           const rentTotal = Number(rentUpToTransaction.rows[0].total);
           const cumulativeCreditBalance = ledgerTotal - rentTotal;
 
+          // Set appropriate appliedTo message based on type and subtype
+          let appliedToMessage = 'Credit Balance';
+          if (appliedPeriods.length > 0) {
+            // Show as range if multiple periods, otherwise show single period
+            if (appliedPeriods.length === 1) {
+              appliedToMessage = `${formatPeriod(appliedPeriods[0].period as string)} (₹${appliedPeriods[0].amount})`;
+            } else {
+              const firstPeriod = formatPeriod(appliedPeriods[0].period as string);
+              const lastPeriod = formatPeriod(appliedPeriods[appliedPeriods.length - 1].period as string);
+              const totalAmount = appliedPeriods.reduce((sum, p) => sum + p.amount, 0);
+              appliedToMessage = `${firstPeriod} to ${lastPeriod} (₹${totalAmount})`;
+            }
+          } else if (transaction.type === 'credit') {
+            appliedToMessage = 'Credit Applied to Rent';
+          } else if (transaction.type === 'adjustment') {
+            // Use subtype for clean category display
+            const subtypeLabel = transaction.subtype
+              ? transaction.subtype.charAt(0).toUpperCase() + transaction.subtype.slice(1)
+              : 'Adjustment';
+            appliedToMessage = `${subtypeLabel} Applied`;
+          }
+
+          // Calculate total amount for bundled transactions
+          const totalAmount = bundleTransactions.reduce((sum, t) => sum + Number(t.amount), 0);
+
+          // Collect adjustment details for bundled transactions
+          const adjustments = bundleTransactions
+            .filter(t => t.type === 'adjustment')
+            .map(t => ({
+              type: t.subtype || 'other',
+              amount: Number(t.amount),
+              description: t.description,
+            }));
+
           return {
             ...transaction,
             appliedPeriods,
-            appliedTo: appliedPeriods.length > 0
-              ? appliedPeriods.map(p => `${formatPeriod(p.period as string)} (₹${p.amount})`).join(', ')
-              : transaction.type === 'credit' ? 'Credit Adjustment'
-              : transaction.type === 'maintenance' ? 'Maintenance Credit'
-              : 'Credit Balance',
+            appliedTo: appliedToMessage,
             creditRemaining: cumulativeCreditBalance,
+            documentId: transaction.document_id,
+            bundledTransactions: bundleTransactions.length > 1 ? bundleTransactions : undefined,
+            adjustments: adjustments.length > 0 ? adjustments : undefined,
+            totalAmount: bundleTransactions.length > 1 ? totalAmount : Number(transaction.amount),
           };
         }
+        // Handle security deposit and other non-credit transactions
         return {
           ...transaction,
           appliedPeriods: [],
-          appliedTo: transaction.type === 'deposit' ? 'Security Deposit' : 'Other',
+          appliedTo: 'Other Transaction',
           creditRemaining: null,
+          documentId: transaction.document_id,
+          bundledTransactions: bundleTransactions.length > 1 ? bundleTransactions : undefined,
+          totalAmount: Number(transaction.amount),
         };
       })
     );
+
+    // Sort all transactions by date DESC, then created_at DESC
+    transactionsWithDetails.sort((a, b) => {
+      if (a.transaction_date !== b.transaction_date) {
+        return b.transaction_date.localeCompare(a.transaction_date);
+      }
+      return b.created_at.localeCompare(a.created_at);
+    });
 
     return NextResponse.json({
       transactions: transactionsWithDetails,

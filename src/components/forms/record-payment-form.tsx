@@ -36,8 +36,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Plus, Info, Loader2, Check, ChevronsUpDown } from "lucide-react";
+import { Plus, Info, Loader2, Check, ChevronsUpDown, ChevronDown, ChevronUp } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -66,12 +67,8 @@ interface Tenant {
 
 const paymentTypes = [
   { value: "payment", label: "Payment", category: "income" },
-  { value: "security_deposit_add", label: "Security Deposit - Add/Increase", category: "deposit" },
-  { value: "security_deposit_withdraw", label: "Security Deposit - Withdraw/Decrease", category: "deposit" },
-  { value: "deposit_used", label: "Security Deposit Used (for dues)", category: "adjustment" },
   { value: "credit", label: "Apply Credit to Rent", category: "adjustment" },
-  { value: "discount", label: "Discount", category: "adjustment" },
-  { value: "maintenance", label: "Maintenance Adjustment", category: "adjustment" },
+  { value: "adjustment", label: "Adjustment (Discount/Maintenance/Other)", category: "adjustment" },
 ];
 
 const paymentMethods = [
@@ -93,6 +90,11 @@ export interface PaymentFormData {
   method: string;
   date: string;
   notes: string;
+  // Adjustments (kept as separate fields for UX, backend converts to single type)
+  discount?: number;
+  maintenanceDeduction?: number;
+  otherAdjustment?: number;
+  autoApplyToRent?: boolean;
 }
 
 export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps) {
@@ -102,6 +104,7 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
+  const [showAdjustments, setShowAdjustments] = useState(false);
   const [formData, setFormData] = useState<PaymentFormData>({
     tenantId: "",
     amount: 0,
@@ -109,6 +112,10 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
     method: "cash",
     date: format(new Date(), "yyyy-MM-dd"),
     notes: "",
+    discount: 0,
+    maintenanceDeduction: 0,
+    otherAdjustment: 0,
+    autoApplyToRent: true,
   });
 
   // Fetch tenants when dialog opens
@@ -123,8 +130,13 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
         method: "cash",
         date: format(new Date(), "yyyy-MM-dd"),
         notes: "",
+        discount: 0,
+        maintenanceDeduction: 0,
+        otherAdjustment: 0,
+        autoApplyToRent: true,
       });
       setSelectedTenant(null);
+      setShowAdjustments(false);
     }
   }, [open]);
 
@@ -191,7 +203,12 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
         method: "cash",
         date: format(new Date(), "yyyy-MM-dd"),
         notes: "",
+        discount: 0,
+        maintenanceDeduction: 0,
+        otherAdjustment: 0,
+        autoApplyToRent: true,
       });
+      setShowAdjustments(false);
     } catch (error) {
       console.error("Error recording transaction:", error);
       toast.error(error instanceof Error ? error.message : "Failed to record transaction");
@@ -402,6 +419,149 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
               )}
             </div>
 
+            {/* Adjustments Section - Only for Payment type */}
+            {formData.type === "payment" && selectedTenant && (
+              <div className="rounded-lg border">
+                <button
+                  type="button"
+                  onClick={() => setShowAdjustments(!showAdjustments)}
+                  className="w-full flex items-center justify-between p-3 hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">Adjustments (Optional)</span>
+                    <span className="text-xs text-muted-foreground">
+                      {(formData.discount || 0) + (formData.maintenanceDeduction || 0) + (formData.otherAdjustment || 0) > 0
+                        ? `₹${((formData.discount || 0) + (formData.maintenanceDeduction || 0) + (formData.otherAdjustment || 0)).toLocaleString("en-IN")} applied`
+                        : "Add discounts or deductions"}
+                    </span>
+                  </div>
+                  {showAdjustments ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </button>
+
+                {showAdjustments && (
+                  <div className="p-4 pt-0 space-y-3 border-t">
+                    {/* Discount */}
+                    <div className="grid gap-2">
+                      <Label htmlFor="discount" className="text-sm">Discount</Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₹</span>
+                        <Input
+                          id="discount"
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={formData.discount || ""}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, discount: Number(e.target.value) || 0 }))}
+                          className="pl-7"
+                          placeholder="0"
+                          disabled={submitting}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">One-time discount given to tenant</p>
+                    </div>
+
+                    {/* Maintenance Deduction */}
+                    <div className="grid gap-2">
+                      <Label htmlFor="maintenance" className="text-sm">Maintenance Deduction</Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₹</span>
+                        <Input
+                          id="maintenance"
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={formData.maintenanceDeduction || ""}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, maintenanceDeduction: Number(e.target.value) || 0 }))}
+                          className="pl-7"
+                          placeholder="0"
+                          disabled={submitting}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">Deduct for tenant-paid maintenance expenses</p>
+                    </div>
+
+                    {/* Other Adjustment */}
+                    <div className="grid gap-2">
+                      <Label htmlFor="otherAdjustment" className="text-sm">Other Adjustment</Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₹</span>
+                        <Input
+                          id="otherAdjustment"
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={formData.otherAdjustment || ""}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, otherAdjustment: Number(e.target.value) || 0 }))}
+                          className="pl-7"
+                          placeholder="0"
+                          disabled={submitting}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">Any other adjustment or waiver</p>
+                    </div>
+
+                    {/* Real-time Calculation Summary */}
+                    {(() => {
+                      const expectedRent = selectedTenant.rooms?.reduce((sum, room) => sum + room.expectedRent, 0) || selectedTenant.monthlyRent;
+                      const totalAdjustments = (formData.discount || 0) + (formData.maintenanceDeduction || 0) + (formData.otherAdjustment || 0);
+                      const amountDue = Math.max(0, expectedRent - totalAdjustments);
+                      const amountPaid = formData.amount || 0;
+                      const difference = amountPaid - amountDue;
+
+                      return (
+                        <div className="mt-4 p-3 bg-muted/50 rounded-md space-y-2 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Expected Rent:</span>
+                            <span className="font-medium">₹{expectedRent.toLocaleString("en-IN")}</span>
+                          </div>
+                          {totalAdjustments > 0 && (
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Total Adjustments:</span>
+                              <span className="font-medium text-orange-600">-₹{totalAdjustments.toLocaleString("en-IN")}</span>
+                            </div>
+                          )}
+                          <div className="flex justify-between pt-2 border-t">
+                            <span className="text-muted-foreground">Amount Due:</span>
+                            <span className="font-semibold">₹{amountDue.toLocaleString("en-IN")}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Amount Paid:</span>
+                            <span className="font-semibold">₹{amountPaid.toLocaleString("en-IN")}</span>
+                          </div>
+                          <div className="flex justify-between items-center pt-2 border-t">
+                            <span className="font-medium">Status:</span>
+                            <span className={cn(
+                              "font-semibold",
+                              difference === 0 ? "text-green-600" : difference > 0 ? "text-blue-600" : "text-orange-600"
+                            )}>
+                              {difference === 0 ? "✓ Fully Paid" :
+                               difference > 0 ? `Overpaid (+₹${difference.toLocaleString("en-IN")})` :
+                               `Partial (₹${Math.abs(difference).toLocaleString("en-IN")} short)`}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Auto-apply to rent */}
+                    <div className="flex items-center space-x-2 pt-2">
+                      <Checkbox
+                        id="autoApply"
+                        checked={formData.autoApplyToRent}
+                        onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, autoApplyToRent: checked as boolean }))}
+                      />
+                      <label
+                        htmlFor="autoApply"
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        Auto-apply to rent
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Type */}
             <div className="grid gap-2">
               <Label htmlFor="type">Transaction Type *</Label>
@@ -414,35 +574,24 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectGroup>
-                    <SelectLabel>Payment</SelectLabel>
-                    <SelectItem value="payment">Payment</SelectItem>
-                  </SelectGroup>
-                  <SelectGroup>
-                    <SelectLabel>Security Deposit</SelectLabel>
-                    <SelectItem value="security_deposit_add">Add / Increase Deposit</SelectItem>
-                    <SelectItem value="security_deposit_withdraw">Withdraw / Decrease Deposit</SelectItem>
-                    <SelectItem value="deposit_used">Use Deposit for Dues</SelectItem>
-                  </SelectGroup>
-                  <SelectGroup>
-                    <SelectLabel>Adjustments</SelectLabel>
-                    <SelectItem value="credit">Apply Credit to Rent</SelectItem>
-                    <SelectItem value="discount">Discount</SelectItem>
-                    <SelectItem value="maintenance">Maintenance Adjustment</SelectItem>
-                  </SelectGroup>
+                  {paymentTypes.map((type) => (
+                    <SelectItem key={type.value} value={type.value}>
+                      {type.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+              {formData.type === "payment" && selectedTenant && (
+                <p className="text-xs text-muted-foreground">
+                  Tip: Use "Adjustments" section below for discounts or deductions
+                </p>
+              )}
+              {formData.type === "adjustment" && (
+                <p className="text-xs text-muted-foreground">
+                  For payment with adjustments, use "Payment" type and expand "Adjustments" section
+                </p>
+              )}
             </div>
-
-            {/* Security Deposit Info */}
-            {selectedTenant && (formData.type === "security_deposit_add" || formData.type === "security_deposit_withdraw" || formData.type === "deposit_used") && (
-              <Alert>
-                <Info className="h-4 w-4" />
-                <AlertDescription>
-                  Current security deposit: <span className="font-semibold">₹{selectedTenant.securityDeposit.toLocaleString("en-IN")}</span>
-                </AlertDescription>
-              </Alert>
-            )}
 
             {/* Method */}
             <div className="grid gap-2">

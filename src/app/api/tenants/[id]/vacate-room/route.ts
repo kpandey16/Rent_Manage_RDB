@@ -9,7 +9,7 @@ export async function POST(
   try {
     const { id: tenantId } = await params;
     const body = await request.json();
-    const { roomId, vacateDate, refundAmount, notes } = body;
+    const { roomId, vacateDate, refundAmount, refundCreditBalance, notes } = body;
 
     // Validation
     if (!roomId || !vacateDate) {
@@ -70,7 +70,9 @@ export async function POST(
 
     const financials = tenantFinancials.rows[0];
     const activeRoomsCount = Number(financials.active_rooms_count || 0);
-    const totalDues = Number(financials.total_rent_paid || 0) - Number(financials.total_credits || 0);
+    const ledgerBalance = Number(financials.total_credits || 0) - Number(financials.total_rent_paid || 0);
+    const totalDues = ledgerBalance < 0 ? Math.abs(ledgerBalance) : 0;
+    const creditBalance = ledgerBalance > 0 ? ledgerBalance : 0;
     const securityDepositBalance = Number(financials.security_deposit_balance || 0);
 
     // Validation: If this is the last room and tenant has dues, block vacate
@@ -84,12 +86,24 @@ export async function POST(
       );
     }
 
-    // Validate refund amount
+    // Validate security deposit refund amount
     if (refundAmount && refundAmount > 0) {
       if (refundAmount > securityDepositBalance) {
         return NextResponse.json(
           {
             error: `Refund amount (₹${refundAmount}) exceeds available security deposit (₹${securityDepositBalance})`
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Validate credit balance refund amount
+    if (refundCreditBalance && refundCreditBalance > 0) {
+      if (refundCreditBalance > creditBalance) {
+        return NextResponse.json(
+          {
+            error: `Credit refund amount (₹${refundCreditBalance}) exceeds available credit balance (₹${creditBalance})`
           },
           { status: 400 }
         );
@@ -130,6 +144,23 @@ export async function POST(
       });
     }
 
+    // Process credit balance refund if requested (deducted from collection)
+    if (refundCreditBalance && refundCreditBalance > 0) {
+      const creditRefundId = generateId();
+      await db.execute({
+        sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, amount, description, created_at)
+              VALUES (?, ?, ?, 'payment', ?, ?, ?)`,
+        args: [
+          creditRefundId,
+          tenantId,
+          vacateDate,
+          -refundCreditBalance, // Negative amount = deduction from collection
+          notes || `Credit balance refund on vacating room`,
+          now
+        ],
+      });
+    }
+
     // If this was the last room, mark tenant as inactive
     if (isLastRoom) {
       await db.execute({
@@ -144,13 +175,24 @@ export async function POST(
       args: [roomId],
     });
 
+    // Build refund message
+    const refundMessages: string[] = [];
+    if (refundAmount > 0) {
+      refundMessages.push(`Security deposit of ₹${refundAmount.toLocaleString("en-IN")} refunded`);
+    }
+    if (refundCreditBalance > 0) {
+      refundMessages.push(`Credit balance of ₹${refundCreditBalance.toLocaleString("en-IN")} refunded`);
+    }
+    const refundMessage = refundMessages.length > 0 ? `. ${refundMessages.join('. ')}` : '';
+
     return NextResponse.json(
       {
-        message: `Room ${room.rows[0].code} vacated successfully${refundAmount > 0 ? `. Security deposit of ₹${refundAmount.toLocaleString("en-IN")} refunded` : ''}${isLastRoom ? '. Tenant marked as inactive' : ''}`,
+        message: `Room ${room.rows[0].code} vacated successfully${refundMessage}${isLastRoom ? '. Tenant marked as inactive' : ''}`,
         vacationDetails: {
           roomCode: room.rows[0].code,
           vacateDate,
           refundAmount: refundAmount || 0,
+          refundCreditBalance: refundCreditBalance || 0,
           tenantNowInactive: isLastRoom,
         },
       },

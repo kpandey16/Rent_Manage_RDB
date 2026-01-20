@@ -51,6 +51,7 @@ export interface VacateFormData {
   vacateDate: string;
   refundDeposit: boolean;
   refundAmount: number;
+  refundCreditBalance: number;
   notes: string;
 }
 
@@ -65,6 +66,7 @@ export function VacateRoomForm({ trigger, onSubmit }: VacateRoomFormProps) {
     vacateDate: format(new Date(), "yyyy-MM-dd"),
     refundDeposit: false,
     refundAmount: 0,
+    refundCreditBalance: 0,
     notes: "",
   });
 
@@ -79,6 +81,7 @@ export function VacateRoomForm({ trigger, onSubmit }: VacateRoomFormProps) {
         vacateDate: format(new Date(), "yyyy-MM-dd"),
         refundDeposit: false,
         refundAmount: 0,
+        refundCreditBalance: 0,
         notes: "",
       });
     }
@@ -175,6 +178,7 @@ export function VacateRoomForm({ trigger, onSubmit }: VacateRoomFormProps) {
           roomId: formData.roomId,
           vacateDate: formData.vacateDate,
           refundAmount: formData.refundAmount,
+          refundCreditBalance: formData.refundCreditBalance,
           notes: formData.notes,
         }),
       });
@@ -202,6 +206,7 @@ export function VacateRoomForm({ trigger, onSubmit }: VacateRoomFormProps) {
       tenantId,
       roomId: "", // Reset room selection when tenant changes
       refundAmount: 0,
+      refundCreditBalance: 0,
     }));
   };
 
@@ -285,6 +290,12 @@ export function VacateRoomForm({ trigger, onSubmit }: VacateRoomFormProps) {
                   <span className="font-medium">₹{selectedTenant.securityDeposit.toLocaleString("en-IN")}</span>
                 </div>
                 <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Credit Balance:</span>
+                  <span className={`font-medium ${selectedTenant.creditBalance > 0 ? "text-green-600" : selectedTenant.creditBalance < 0 ? "text-destructive" : ""}`}>
+                    {selectedTenant.creditBalance > 0 ? '+' : selectedTenant.creditBalance < 0 ? '-' : ''}₹{Math.abs(selectedTenant.creditBalance).toLocaleString("en-IN")}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Pending Dues:</span>
                   <span className={`font-medium ${selectedTenant.totalDues > 0 ? "text-destructive" : "text-green-600"}`}>
                     {selectedTenant.totalDues > 0
@@ -356,6 +367,30 @@ export function VacateRoomForm({ trigger, onSubmit }: VacateRoomFormProps) {
                     Max refundable: ₹{(selectedTenant?.securityDeposit || 0).toLocaleString("en-IN")}
                   </p>
                 </div>
+
+                {/* Credit Balance Refund */}
+                {selectedTenant && selectedTenant.creditBalance > 0 && (
+                  <div className="grid gap-2">
+                    <Label htmlFor="refundCreditBalance">Credit Balance Refund</Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₹</span>
+                      <Input
+                        id="refundCreditBalance"
+                        type="number"
+                        min="0"
+                        max={selectedTenant.creditBalance}
+                        step="1"
+                        value={formData.refundCreditBalance || ""}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, refundCreditBalance: Number(e.target.value) }))}
+                        className="pl-7"
+                        placeholder="0"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Available credit: ₹{selectedTenant.creditBalance.toLocaleString("en-IN")}. This will be deducted from collection.
+                    </p>
+                  </div>
+                )}
 
                 {/* Notes */}
                 <div className="grid gap-2">

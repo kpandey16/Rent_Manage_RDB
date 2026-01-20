@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Menu, Bell, Home, Users, DoorOpen, CreditCard, BarChart3, Wallet } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Menu, Bell, Home, Users, DoorOpen, CreditCard, BarChart3, Wallet, LogOut, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -11,7 +11,17 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { useState } from "react";
 
 const navItems = [
   { href: "/", icon: Home, label: "Dashboard" },
@@ -24,6 +34,30 @@ const navItems = [
 
 export function Header() {
   const pathname = usePathname();
+  const router = useRouter();
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    try {
+      setLoggingOut(true);
+      const response = await fetch("/api/auth/logout", {
+        method: "POST",
+      });
+
+      if (response.ok) {
+        toast.success("Logged out successfully");
+        router.push("/login");
+        router.refresh();
+      } else {
+        toast.error("Failed to logout");
+      }
+    } catch (error) {
+      console.error("Logout error:", error);
+      toast.error("An error occurred during logout");
+    } finally {
+      setLoggingOut(false);
+    }
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -98,6 +132,23 @@ export function Header() {
             <Bell className="h-5 w-5" />
             <span className="sr-only">Notifications</span>
           </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <User className="h-5 w-5" />
+                <span className="sr-only">User menu</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>My Account</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleLogout} disabled={loggingOut}>
+                <LogOut className="mr-2 h-4 w-4" />
+                {loggingOut ? "Logging out..." : "Logout"}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </header>
