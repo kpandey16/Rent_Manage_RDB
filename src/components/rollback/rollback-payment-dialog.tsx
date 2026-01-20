@@ -61,11 +61,13 @@ export function RollbackPaymentDialog({
       const data = await response.json();
 
       if (!response.ok) {
+        console.error("Validation failed:", data);
         toast.error(data.error || "Failed to validate rollback");
         onOpenChange(false);
         return;
       }
 
+      console.log("Validation result:", data);
       setValidation(data);
     } catch (error) {
       console.error("Validation error:", error);
