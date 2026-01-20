@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -34,22 +34,26 @@ export function RollbackPaymentDialog({
   const [validation, setValidation] = useState<any>(null);
   const [reason, setReason] = useState("");
 
-  // Validate when dialog opens
-  const handleOpenChange = async (newOpen: boolean) => {
-    console.log("🚪 Dialog open state changing to:", newOpen);
-    onOpenChange(newOpen);
-
-    if (newOpen && !validation) {
-      console.log("🔄 Dialog opened and no validation data, calling validateRollback");
-      await validateRollback();
+  // Validate when dialog opens (triggered by useEffect)
+  useEffect(() => {
+    console.log("👀 useEffect triggered - open:", open, "validation:", validation ? "present" : "null");
+    if (open && !validation) {
+      console.log("🔄 Dialog opened, calling validateRollback");
+      validateRollback();
     }
 
     // Reset when closing
-    if (!newOpen) {
-      console.log("🔄 Dialog closing, resetting state");
+    if (!open) {
+      console.log("🔄 Dialog closed, resetting state");
       setValidation(null);
       setReason("");
     }
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Handle dialog close button (user clicking X or backdrop)
+  const handleOpenChange = (newOpen: boolean) => {
+    console.log("🚪 handleOpenChange called with:", newOpen);
+    onOpenChange(newOpen);
   };
 
   const validateRollback = async () => {
