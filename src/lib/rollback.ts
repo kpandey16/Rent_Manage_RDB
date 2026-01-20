@@ -157,25 +157,7 @@ export async function validatePaymentRollback(
 
     const p = ledger.rows[0] as any;
 
-    // Step 2: Must be payment type
-    if (p.type !== 'payment') {
-      errors.push(`Cannot rollback ${p.type} type entries. Only cash/UPI payments can be rolled back.`);
-      // Still continue to show details
-    }
-
-    // Step 3: Must be cash or UPI method
-    if (p.payment_method !== 'cash' && p.payment_method !== 'upi') {
-      errors.push(`Payment method '${p.payment_method || 'unknown'}' cannot be rolled back. Only cash/UPI payments are eligible.`);
-      // Still continue to show details
-    }
-
-    // Step 4: Must be tenant's most recent payment
-    const isMostRecent = await isMostRecentPayment(p.tenant_id, ledgerId);
-    if (!isMostRecent) {
-      errors.push("Only the most recent payment can be rolled back");
-    }
-
-    // Step 5: Get all rent_payments from this ledger entry
+    // Step 2: Get all rent_payments from this ledger entry first (need for details)
     const allRentPayments = await db.execute({
       sql: `SELECT for_period, rent_amount FROM rent_payments
             WHERE ledger_id = ?
@@ -188,6 +170,22 @@ export async function validatePaymentRollback(
       (sum: number, r: any) => sum + Number(r.rent_amount),
       0
     );
+
+    // Step 3: Must be payment type
+    if (p.type !== 'payment') {
+      errors.push(`Cannot rollback ${p.type} type entries. Only cash/UPI payments can be rolled back.`);
+    }
+
+    // Step 4: Must be cash or UPI method
+    if (p.payment_method !== 'cash' && p.payment_method !== 'upi') {
+      errors.push(`Payment method '${p.payment_method || 'unknown'}' cannot be rolled back. Only cash/UPI payments are eligible.`);
+    }
+
+    // Step 5: Must be tenant's most recent payment
+    const isMostRecent = await isMostRecentPayment(p.tenant_id, ledgerId);
+    if (!isMostRecent) {
+      errors.push("Only the most recent payment can be rolled back");
+    }
 
     // Step 6: Check if credit generated from this payment was used
     const creditCheck = await checkCreditUsageAfterPayment(

@@ -132,8 +132,13 @@ export function RollbackPaymentDialog({
         {validating ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <p className="ml-3 text-muted-foreground">Validating payment...</p>
           </div>
-        ) : validation ? (
+        ) : !validation ? (
+          <div className="flex items-center justify-center py-8">
+            <p className="text-muted-foreground">No validation data available</p>
+          </div>
+        ) : (
           <div className="space-y-4">
             {/* Show validation errors */}
             {validation.errors && validation.errors.length > 0 && (
