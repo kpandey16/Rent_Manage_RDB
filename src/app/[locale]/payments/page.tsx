@@ -1,13 +1,16 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useTranslations, useLocale } from "next-intl";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowDownLeft, ChevronRight, Loader2, RotateCcw } from "lucide-react";
 import { RecordPaymentForm } from "@/components/forms/record-payment-form";
 import { RollbackPaymentDialog } from "@/components/rollback/rollback-payment-dialog";
+import { RollbackHistoryTable } from "@/components/rollback/rollback-history-table";
 import { toast } from "sonner";
 
 interface Transaction {
@@ -25,6 +28,8 @@ interface Transaction {
 }
 
 export default function PaymentsPage() {
+  const t = useTranslations();
+  const locale = useLocale();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(10);
@@ -78,25 +83,31 @@ export default function PaymentsPage() {
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Payments</h1>
+        <h1 className="text-xl font-semibold">{t('payments.title')}</h1>
         <RecordPaymentForm onSubmit={handlePaymentSubmit} />
       </div>
 
-      <div className="mt-4 space-y-3">
+      <Tabs defaultValue="payments" className="mt-4">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="payments">{t('payments.paymentHistory')}</TabsTrigger>
+          <TabsTrigger value="rollback">{t('payments.rollbackHistory')}</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="payments" className="mt-4 space-y-3">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : transactions.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              No transactions yet. Record your first payment above!
+              {t('payments.noPayments')}
             </div>
           ) : (
             <>
               {transactions.slice(0, visibleCount).map((transaction) => (
                 <Card key={transaction.id} className="hover:bg-muted/50 transition-colors">
                   <CardContent className="p-4">
-                    <Link href={`/tenants/${transaction.tenant_id}`} className="block">
+                    <Link href={`/${locale}/tenants/${transaction.tenant_id}`} className="block">
                       <div className="flex items-center justify-between">
                         <div className="space-y-1 flex-1">
                           <div className="flex items-center gap-2">
@@ -180,7 +191,12 @@ export default function PaymentsPage() {
               )}
             </>
           )}
-      </div>
+        </TabsContent>
+
+        <TabsContent value="rollback" className="mt-4">
+          <RollbackHistoryTable />
+        </TabsContent>
+      </Tabs>
 
       {/* Rollback Dialog */}
       {selectedLedgerId && (

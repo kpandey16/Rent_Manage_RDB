@@ -103,6 +103,7 @@
     "title": "Payments",
     "addPayment": "Add Payment",
     "paymentHistory": "Payment History",
+    "rollbackHistory": "Rollback History",
     "amount": "Amount",
     "date": "Date",
     "method": "Payment Method",
@@ -123,7 +124,17 @@
     "paymentAdded": "Payment added successfully",
     "paymentDeleted": "Payment deleted successfully",
     "rollback": "Rollback",
-    "rollbackPayment": "Rollback Payment"
+    "rollbackPayment": "Rollback Payment",
+    "rollbackedOn": "Rolled back on",
+    "rollbackedBy": "Rolled back by",
+    "originalAmount": "Original Amount",
+    "periodsAffected": "Periods Affected",
+    "rollbackReason": "Rollback Reason",
+    "operatorBalance": "Operator Balance",
+    "before": "Before",
+    "after": "After",
+    "noRollbackHistory": "No rollback history found",
+    "searchTenant": "Search by tenant..."
   },
   "cashManagement": {
     "title": "Cash Management",

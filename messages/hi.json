@@ -103,6 +103,7 @@
     "title": "भुगतान",
     "addPayment": "भुगतान जोड़ें",
     "paymentHistory": "भुगतान इतिहास",
+    "rollbackHistory": "रोलबैक इतिहास",
     "amount": "राशि",
     "date": "तारीख",
     "method": "भुगतान विधि",
@@ -123,7 +124,17 @@
     "paymentAdded": "भुगतान सफलतापूर्वक जोड़ा गया",
     "paymentDeleted": "भुगतान सफलतापूर्वक हटाया गया",
     "rollback": "रोलबैक",
-    "rollbackPayment": "भुगतान रोलबैक करें"
+    "rollbackPayment": "भुगतान रोलबैक करें",
+    "rollbackedOn": "रोलबैक की तारीख",
+    "rollbackedBy": "रोलबैक किया गया",
+    "originalAmount": "मूल राशि",
+    "periodsAffected": "प्रभावित अवधि",
+    "rollbackReason": "रोलबैक का कारण",
+    "operatorBalance": "ऑपरेटर बैलेंस",
+    "before": "पहले",
+    "after": "बाद में",
+    "noRollbackHistory": "कोई रोलबैक इतिहास नहीं मिला",
+    "searchTenant": "किरायेदार से खोजें..."
   },
   "cashManagement": {
     "title": "नकद प्रबंधन",
