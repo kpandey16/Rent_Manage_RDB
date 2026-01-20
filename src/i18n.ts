@@ -1,7 +1,7 @@
 import { getRequestConfig } from 'next-intl/server';
-import { notFound } from 'next/navigation';
 
-// Can be imported from a shared config
+// Locales are defined here for server-side usage
+// Also defined in middleware.ts for edge runtime
 export const locales = ['en', 'hi'] as const;
 export type Locale = (typeof locales)[number];
 

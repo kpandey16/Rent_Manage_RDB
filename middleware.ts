@@ -1,9 +1,11 @@
 import createMiddleware from 'next-intl/middleware';
-import { locales } from './src/i18n';
+
+// Define locales directly here to avoid edge runtime issues
+export const locales = ['en', 'hi'] as const;
 
 export default createMiddleware({
   // A list of all locales that are supported
-  locales,
+  locales: locales,
 
   // Used when no locale matches
   defaultLocale: 'en',
@@ -13,6 +15,9 @@ export default createMiddleware({
 });
 
 export const config = {
-  // Match only internationalized pathnames
-  matcher: ['/', '/(hi|en)/:path*']
+  // Match all pathnames except for
+  // - api routes
+  // - _next (Next.js internals)
+  // - files with extensions (e.g. favicon.ico)
+  matcher: ['/((?!api|_next|.*\\..*).*)']
 };
