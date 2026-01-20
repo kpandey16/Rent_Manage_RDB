@@ -5,8 +5,9 @@ import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowDownLeft, ChevronRight, Loader2 } from "lucide-react";
+import { ArrowDownLeft, ChevronRight, Loader2, RotateCcw } from "lucide-react";
 import { RecordPaymentForm } from "@/components/forms/record-payment-form";
+import { RollbackPaymentDialog } from "@/components/rollback/rollback-payment-dialog";
 import { toast } from "sonner";
 
 interface Transaction {
@@ -27,6 +28,8 @@ export default function PaymentsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(10);
+  const [rollbackDialogOpen, setRollbackDialogOpen] = useState(false);
+  const [selectedLedgerId, setSelectedLedgerId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchTransactions();
@@ -52,6 +55,26 @@ export default function PaymentsPage() {
     fetchTransactions();
   };
 
+  const handleRollbackClick = (e: React.MouseEvent, ledgerId: string) => {
+    e.preventDefault(); // Prevent Link navigation
+    e.stopPropagation();
+    setSelectedLedgerId(ledgerId);
+    setRollbackDialogOpen(true);
+  };
+
+  const handleRollbackSuccess = () => {
+    fetchTransactions();
+    setSelectedLedgerId(null);
+  };
+
+  // Check if transaction can show rollback button (payment type with cash/upi)
+  const canShowRollback = (transaction: Transaction) => {
+    return (
+      transaction.type === "payment" &&
+      (transaction.payment_method === "cash" || transaction.payment_method === "upi")
+    );
+  };
+
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
@@ -71,9 +94,9 @@ export default function PaymentsPage() {
           ) : (
             <>
               {transactions.slice(0, visibleCount).map((transaction) => (
-                <Link key={transaction.id} href={`/tenants/${transaction.tenant_id}`}>
-                  <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
-                    <CardContent className="p-4">
+                <Card key={transaction.id} className="hover:bg-muted/50 transition-colors">
+                  <CardContent className="p-4">
+                    <Link href={`/tenants/${transaction.tenant_id}`} className="block">
                       <div className="flex items-center justify-between">
                         <div className="space-y-1 flex-1">
                           <div className="flex items-center gap-2">
@@ -115,12 +138,26 @@ export default function PaymentsPage() {
                               {transaction.type}
                             </Badge>
                           </div>
-                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+
+                          {/* Rollback button - only for payment type with cash/upi */}
+                          {canShowRollback(transaction) ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={(e) => handleRollbackClick(e, transaction.id)}
+                              title="Rollback payment"
+                            >
+                              <RotateCcw className="h-4 w-4" />
+                            </Button>
+                          ) : (
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          )}
                         </div>
                       </div>
-                    </CardContent>
-                  </Card>
-                </Link>
+                    </Link>
+                  </CardContent>
+                </Card>
               ))}
 
               {/* Load More Button */}
@@ -144,6 +181,16 @@ export default function PaymentsPage() {
             </>
           )}
       </div>
+
+      {/* Rollback Dialog */}
+      {selectedLedgerId && (
+        <RollbackPaymentDialog
+          open={rollbackDialogOpen}
+          onOpenChange={setRollbackDialogOpen}
+          ledgerId={selectedLedgerId}
+          onSuccess={handleRollbackSuccess}
+        />
+      )}
     </div>
   );
 }
