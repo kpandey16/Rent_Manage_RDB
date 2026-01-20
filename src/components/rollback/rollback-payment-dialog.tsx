@@ -236,11 +236,16 @@ export function RollbackPaymentDialog({
           >
             Cancel
           </Button>
-          {validation?.canRollback && (
+          {validation && (
             <Button
               variant="destructive"
               onClick={handleRollback}
-              disabled={loading || !reason.trim() || reason.trim().length < 10}
+              disabled={
+                loading ||
+                !validation.canRollback ||
+                !reason.trim() ||
+                reason.trim().length < 10
+              }
             >
               {loading ? (
                 <>
