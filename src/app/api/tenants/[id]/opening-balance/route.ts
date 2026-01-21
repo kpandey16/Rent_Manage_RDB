@@ -75,6 +75,14 @@ export async function POST(
     const ledgerId = generateId();
     const now = getCurrentDateTime();
 
+    // IMPORTANT: Negate the amount because in our accounting system:
+    // - Positive in ledger = tenant's favor (credit/payments)
+    // - Negative in ledger = landlord's favor (dues/charges)
+    // But user enters:
+    // - Positive = tenant owes (dues) → store as negative
+    // - Negative = tenant credit (advance) → store as positive
+    const ledgerAmount = -parseFloat(amount);
+
     // Create opening balance transaction using adjustment type with opening_balance subtype
     await db.execute({
       sql: `INSERT INTO tenant_ledger (
@@ -87,7 +95,7 @@ export async function POST(
         description,
         created_at
       ) VALUES (?, ?, ?, 'adjustment', 'opening_balance', ?, ?, ?)`,
-      args: [ledgerId, tenantId, date, amount, description.trim(), now],
+      args: [ledgerId, tenantId, date, ledgerAmount, description.trim(), now],
     });
 
     return NextResponse.json({
