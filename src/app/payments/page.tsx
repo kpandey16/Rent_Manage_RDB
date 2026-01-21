@@ -10,6 +10,7 @@ import { ArrowDownLeft, ChevronRight, Loader2, RotateCcw } from "lucide-react";
 import { RecordPaymentForm } from "@/components/forms/record-payment-form";
 import { RollbackPaymentDialog } from "@/components/rollback/rollback-payment-dialog";
 import { RollbackHistoryTable } from "@/components/rollback/rollback-history-table";
+import { DownloadReceiptButton } from "@/components/receipt/download-receipt-button";
 import { toast } from "sonner";
 
 interface Transaction {
@@ -147,20 +148,37 @@ export default function PaymentsPage() {
                             </Badge>
                           </div>
 
-                          {/* Rollback button - only for payment type with cash/upi */}
-                          {canShowRollback(transaction) ? (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                              onClick={(e) => handleRollbackClick(e, transaction.id)}
-                              title="Rollback payment"
-                            >
-                              <RotateCcw className="h-4 w-4" />
-                            </Button>
-                          ) : (
-                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                          )}
+                          {/* Action buttons */}
+                          <div className="flex items-center gap-1">
+                            {/* Download Receipt button - for payment and credit types */}
+                            {(transaction.type === "payment" || transaction.type === "credit") && (
+                              <div onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+                                <DownloadReceiptButton
+                                  transactionId={transaction.id}
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                />
+                              </div>
+                            )}
+
+                            {/* Rollback button - only for payment type with cash/upi */}
+                            {canShowRollback(transaction) ? (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                onClick={(e) => handleRollbackClick(e, transaction.id)}
+                                title="Rollback payment"
+                              >
+                                <RotateCcw className="h-4 w-4" />
+                              </Button>
+                            ) : (
+                              !transaction.type.match(/payment|credit/) && (
+                                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                              )
+                            )}
+                          </div>
                         </div>
                       </div>
                     </Link>
