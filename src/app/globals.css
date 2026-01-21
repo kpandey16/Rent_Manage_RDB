@@ -123,3 +123,55 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Mobile Optimizations */
+@layer utilities {
+  /* Minimum touch target size (44x44px) for mobile */
+  @media (max-width: 768px) {
+    /* Ensure buttons have adequate touch targets */
+    button:not(.no-mobile-optimize) {
+      @apply min-h-[44px] min-w-[44px];
+    }
+
+    /* Larger form inputs on mobile */
+    input:not([type="checkbox"]):not([type="radio"]):not(.no-mobile-optimize),
+    textarea:not(.no-mobile-optimize),
+    select:not(.no-mobile-optimize) {
+      @apply text-base min-h-[44px];
+    }
+
+    /* Better spacing for interactive elements */
+    .card-content-mobile {
+      @apply p-5;
+    }
+
+    /* Improve badge readability on mobile */
+    .badge-mobile {
+      @apply text-sm px-3 py-1.5;
+    }
+
+    /* Larger icon buttons on mobile */
+    button[size="icon"]:not(.no-mobile-optimize) {
+      @apply h-11 w-11;
+    }
+
+    /* Better spacing in lists */
+    .mobile-list > * + * {
+      @apply mt-4;
+    }
+
+    /* Larger clickable areas for links */
+    a.mobile-link {
+      @apply p-3 -m-3;
+    }
+  }
+
+  /* Prevent text zoom on iOS */
+  @supports (-webkit-touch-callout: none) {
+    input,
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
+  }
+}
