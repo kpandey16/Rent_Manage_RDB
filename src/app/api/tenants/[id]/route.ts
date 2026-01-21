@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { calculateTotalRentOwed, getRentForPeriod } from "@/lib/rent-calculator";
+import { calculateTotalRentOwed, calculateUnpaidRent, getRentForPeriod } from "@/lib/rent-calculator";
 
 // GET /api/tenants/[id] - Get tenant details with financial information
 export async function GET(
@@ -152,12 +152,14 @@ export async function GET(
     // This will use the correct rent for each month based on effective dates
     const totalRentOwed = await calculateTotalRentOwed(id, db);
 
+    // Calculate unpaid rent (excluding paid periods)
+    const totalRentDue = await calculateUnpaidRent(id, db);
+
     // Calculate financial metrics
-    // 1. totalRentDue = Unpaid rent (ignoring credits/adjustments)
+    // 1. totalRentDue = Unpaid rent only (periods not marked as paid)
     // 2. netBalance = What tenant actually owes after applying credits
     //    - Positive = tenant owes money
     //    - Negative = tenant has excess credit
-    const totalRentDue = totalRentOwed; // Pure unpaid rent
     const netBalance = totalRentOwed - ledgerTotal; // After credits
     const totalDues = Math.max(0, netBalance); // For backward compatibility
 

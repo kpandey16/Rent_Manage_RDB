@@ -160,3 +160,64 @@ export async function calculateTotalRentOwed(
 
   return totalRentOwed;
 }
+
+/**
+ * Calculate UNPAID rent for a tenant (excluding paid periods)
+ * @param tenantId - The tenant ID
+ * @param db - Database instance
+ * @returns Total unpaid rent
+ */
+export async function calculateUnpaidRent(
+  tenantId: string,
+  db: any
+): Promise<number> {
+  // Get tenant's room allocations
+  const allocations = await db.execute({
+    sql: `SELECT room_id, move_in_date, move_out_date
+          FROM tenant_rooms
+          WHERE tenant_id = ? AND is_active = 1`,
+    args: [tenantId],
+  });
+
+  if (allocations.rows.length === 0) {
+    return 0;
+  }
+
+  // Get all paid periods for this tenant
+  const paidPeriodsResult = await db.execute({
+    sql: `SELECT for_period FROM rent_payments WHERE tenant_id = ?`,
+    args: [tenantId],
+  });
+
+  const paidPeriods = new Set(paidPeriodsResult.rows.map((row: any) => row.for_period as string));
+
+  let unpaidRent = 0;
+  const today = new Date();
+
+  for (const allocation of allocations.rows) {
+    const roomId = allocation.room_id as string;
+    const moveInDate = new Date(allocation.move_in_date as string);
+    const moveOutDate = allocation.move_out_date
+      ? new Date(allocation.move_out_date as string)
+      : today;
+
+    // Generate all periods from move-in to move-out (or today)
+    let currentDate = new Date(moveInDate.getFullYear(), moveInDate.getMonth(), 1);
+    const endDate = new Date(moveOutDate.getFullYear(), moveOutDate.getMonth(), 1);
+
+    while (currentDate <= endDate) {
+      const period = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}`;
+
+      // Only count if period is NOT paid
+      if (!paidPeriods.has(period)) {
+        const rentForPeriod = await getRentForPeriod(roomId, period, db);
+        unpaidRent += rentForPeriod;
+      }
+
+      // Move to next month
+      currentDate.setMonth(currentDate.getMonth() + 1);
+    }
+  }
+
+  return unpaidRent;
+}

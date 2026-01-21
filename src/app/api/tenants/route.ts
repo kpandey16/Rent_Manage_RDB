@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, generateId, getCurrentDateTime } from "@/lib/db";
-import { calculateTotalRentOwed } from "@/lib/rent-calculator";
+import { calculateTotalRentOwed, calculateUnpaidRent } from "@/lib/rent-calculator";
 
 // POST /api/tenants - Create a new tenant
 export async function POST(request: NextRequest) {
@@ -147,6 +147,9 @@ export async function GET() {
         // Calculate total rent owed using proper calculation
         const totalRentOwed = await calculateTotalRentOwed(tenant.id, db);
 
+        // Calculate unpaid rent (excluding paid periods)
+        const totalRentDue = await calculateUnpaidRent(tenant.id, db);
+
         // Format last paid period (YYYY-MM to MMM-YY)
         let lastPaidMonth = "Never";
         if (tenant.last_paid_period) {
@@ -157,7 +160,6 @@ export async function GET() {
         }
 
         // Calculate financial metrics
-        const totalRentDue = totalRentOwed; // Pure unpaid rent
         const netBalance = totalRentOwed - ledgerTotal; // After credits
 
         return {
