@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useTranslations, useLocale } from "next-intl";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -28,8 +27,6 @@ interface Transaction {
 }
 
 export default function PaymentsPage() {
-  const t = useTranslations();
-  const locale = useLocale();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(10);
@@ -83,14 +80,14 @@ export default function PaymentsPage() {
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">{t('payments.title')}</h1>
+        <h1 className="text-xl font-semibold">Payments</h1>
         <RecordPaymentForm onSubmit={handlePaymentSubmit} />
       </div>
 
       <Tabs defaultValue="payments" className="mt-4">
         <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="payments">{t('payments.paymentHistory')}</TabsTrigger>
-          <TabsTrigger value="rollback">{t('payments.rollbackHistory')}</TabsTrigger>
+          <TabsTrigger value="payments">Payment History</TabsTrigger>
+          <TabsTrigger value="rollback">Rollback History</TabsTrigger>
         </TabsList>
 
         <TabsContent value="payments" className="mt-4 space-y-3">
@@ -100,14 +97,14 @@ export default function PaymentsPage() {
             </div>
           ) : transactions.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              {t('payments.noPayments')}
+              No payments found
             </div>
           ) : (
             <>
               {transactions.slice(0, visibleCount).map((transaction) => (
                 <Card key={transaction.id} className="hover:bg-muted/50 transition-colors">
                   <CardContent className="p-4">
-                    <Link href={`/${locale}/tenants/${transaction.tenant_id}`} className="block">
+                    <Link href={`/tenants/${transaction.tenant_id}`} className="block">
                       <div className="flex items-center justify-between">
                         <div className="space-y-1 flex-1">
                           <div className="flex items-center gap-2">

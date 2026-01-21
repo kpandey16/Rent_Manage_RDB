@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useTranslations, useLocale } from "next-intl";
 import { Menu, Bell, Home, Users, DoorOpen, CreditCard, BarChart3, Wallet, LogOut, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,23 +22,20 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useState } from "react";
-import { LanguageSwitcher } from "@/components/language-switcher";
 
 export function Header() {
-  const t = useTranslations();
-  const locale = useLocale();
   const pathname = usePathname();
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
 
-  // Navigation items with translation keys
+  // Navigation items
   const navItems = [
-    { href: `/${locale}`, icon: Home, label: t('nav.dashboard') },
-    { href: `/${locale}/tenants`, icon: Users, label: t('nav.tenants') },
-    { href: `/${locale}/rooms`, icon: DoorOpen, label: t('nav.rooms') },
-    { href: `/${locale}/payments`, icon: CreditCard, label: t('nav.payments') },
-    { href: `/${locale}/cash-management`, icon: Wallet, label: t('nav.cashManagement') },
-    { href: `/${locale}/reports`, icon: BarChart3, label: t('nav.reports') },
+    { href: "/", icon: Home, label: "Dashboard" },
+    { href: "/tenants", icon: Users, label: "Tenants" },
+    { href: "/rooms", icon: DoorOpen, label: "Rooms" },
+    { href: "/payments", icon: CreditCard, label: "Payments" },
+    { href: "/cash-management", icon: Wallet, label: "Cash Management" },
+    { href: "/reports", icon: BarChart3, label: "Reports" },
   ];
 
   const handleLogout = async () => {
@@ -50,11 +46,11 @@ export function Header() {
       });
 
       if (response.ok) {
-        toast.success(t('auth.logoutSuccess'));
-        router.push(`/${locale}/login`);
+        toast.success("Logged out successfully");
+        router.push("/login");
         router.refresh();
       } else {
-        toast.error(t('common.error'));
+        toast.error("An error occurred");
       }
     } catch (error) {
       console.error("Logout error:", error);
@@ -77,7 +73,7 @@ export function Header() {
           </SheetTrigger>
           <SheetContent side="left" className="w-64">
             <SheetHeader>
-              <SheetTitle className="text-left">{t('common.appName')}</SheetTitle>
+              <SheetTitle className="text-left">Rent Manage</SheetTitle>
             </SheetHeader>
             <nav className="mt-6 flex flex-col gap-2">
               {navItems.map((item) => {
@@ -104,8 +100,8 @@ export function Header() {
         </Sheet>
 
         {/* Logo */}
-        <Link href={`/${locale}`} className="flex items-center gap-2 font-semibold">
-          <span className="text-lg">{t('common.appName')}</span>
+        <Link href="/" className="flex items-center gap-2 font-semibold">
+          <span className="text-lg">Rent Manage</span>
         </Link>
 
         {/* Desktop nav */}
@@ -133,8 +129,6 @@ export function Header() {
 
         {/* Right side */}
         <div className="ml-auto flex items-center gap-2">
-          <LanguageSwitcher />
-
           <Button variant="ghost" size="icon">
             <Bell className="h-5 w-5" />
             <span className="sr-only">Notifications</span>
@@ -148,11 +142,11 @@ export function Header() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuLabel>{t('nav.settings')}</DropdownMenuLabel>
+              <DropdownMenuLabel>Settings</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout} disabled={loggingOut}>
                 <LogOut className="mr-2 h-4 w-4" />
-                {loggingOut ? t('common.loading') : t('auth.logout')}
+                {loggingOut ? "Logging out..." : "Logout"}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useTranslations } from "next-intl";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -35,7 +34,6 @@ interface RollbackHistoryItem {
 }
 
 export function RollbackHistoryTable() {
-  const t = useTranslations();
   const [history, setHistory] = useState<RollbackHistoryItem[]>([]);
   const [filteredHistory, setFilteredHistory] = useState<RollbackHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,7 +71,7 @@ export function RollbackHistoryTable() {
       setFilteredHistory(data.history || []);
     } catch (error) {
       console.error("Error fetching rollback history:", error);
-      toast.error(t('rollback.rollbackError'));
+      toast.error("Failed to load rollback history");
     } finally {
       setLoading(false);
     }
@@ -94,7 +92,7 @@ export function RollbackHistoryTable() {
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           type="text"
-          placeholder={t('payments.searchTenant')}
+          placeholder="Search by tenant name, phone, or reason..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-10"
@@ -104,7 +102,7 @@ export function RollbackHistoryTable() {
       {/* Rollback History List */}
       {filteredHistory.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">
-          {searchQuery ? t('common.noData') : t('payments.noRollbackHistory')}
+          {searchQuery ? "No results found" : "No rollback history"}
         </div>
       ) : (
         <div className="space-y-3">
@@ -136,7 +134,7 @@ export function RollbackHistoryTable() {
                   {/* Details Grid */}
                   <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm border-t pt-3">
                     <div className="text-muted-foreground">
-                      {t('payments.rollbackedOn')}:
+                      Rolled back on:
                     </div>
                     <div className="font-medium">
                       {new Date(item.performedAt).toLocaleString("en-IN", {
@@ -146,12 +144,12 @@ export function RollbackHistoryTable() {
                     </div>
 
                     <div className="text-muted-foreground">
-                      {t('payments.rollbackedBy')}:
+                      Rolled back by:
                     </div>
                     <div className="font-medium">{item.performedBy.name}</div>
 
                     <div className="text-muted-foreground">
-                      {t('payments.periodsAffected')}:
+                      Periods affected:
                     </div>
                     <div className="font-medium">
                       {item.periods.join(", ")}
@@ -160,7 +158,7 @@ export function RollbackHistoryTable() {
                     {item.adjustmentsRolledBack !== null && (
                       <>
                         <div className="text-muted-foreground">
-                          {t('rollback.adjustments')}:
+                          Adjustments:
                         </div>
                         <div className="font-medium text-orange-600">
                           ₹{item.adjustmentsRolledBack.toLocaleString("en-IN")}
@@ -169,16 +167,16 @@ export function RollbackHistoryTable() {
                     )}
 
                     <div className="text-muted-foreground">
-                      {t('payments.operatorBalance')}:
+                      Operator Balance:
                     </div>
                     <div className="font-medium">
                       <span className="text-xs text-muted-foreground">
-                        {t('payments.before')}:{" "}
+                        Before:{" "}
                       </span>
                       ₹{item.operatorBalanceBefore.toLocaleString("en-IN")}
                       <span className="mx-1">→</span>
                       <span className="text-xs text-muted-foreground">
-                        {t('payments.after')}:{" "}
+                        After:{" "}
                       </span>
                       ₹{item.operatorBalanceAfter.toLocaleString("en-IN")}
                     </div>
@@ -187,7 +185,7 @@ export function RollbackHistoryTable() {
                   {/* Reason */}
                   <div className="border-t pt-3">
                     <p className="text-xs text-muted-foreground mb-1">
-                      {t('payments.rollbackReason')}:
+                      Rollback Reason:
                     </p>
                     <p className="text-sm">{item.reason}</p>
                   </div>

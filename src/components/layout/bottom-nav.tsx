@@ -2,22 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useTranslations, useLocale } from "next-intl";
 import { Home, Users, DoorOpen, CreditCard, BarChart3, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function BottomNav() {
-  const t = useTranslations();
-  const locale = useLocale();
   const pathname = usePathname();
 
   const navItems = [
-    { href: `/${locale}`, icon: Home, label: t('nav.dashboard') },
-    { href: `/${locale}/tenants`, icon: Users, label: t('nav.tenants') },
-    { href: `/${locale}/rooms`, icon: DoorOpen, label: t('nav.rooms') },
-    { href: `/${locale}/payments`, icon: CreditCard, label: t('nav.payments') },
-    { href: `/${locale}/cash-management`, icon: Wallet, label: t('nav.cashManagement') },
-    { href: `/${locale}/reports`, icon: BarChart3, label: t('nav.reports') },
+    { href: "/", icon: Home, label: "Dashboard" },
+    { href: "/tenants", icon: Users, label: "Tenants" },
+    { href: "/rooms", icon: DoorOpen, label: "Rooms" },
+    { href: "/payments", icon: CreditCard, label: "Payments" },
+    { href: "/cash-management", icon: Wallet, label: "Cash Management" },
+    { href: "/reports", icon: BarChart3, label: "Reports" },
   ];
 
   return (
