@@ -46,9 +46,9 @@ export function Header() {
       });
 
       if (response.ok) {
-        // Use replace to avoid back button issues
-        router.replace("/login");
         toast.success("Logged out successfully");
+        // Use window.location.href for hard navigation to ensure cookie is cleared
+        window.location.href = "/login";
       } else {
         toast.error("An error occurred");
       }
