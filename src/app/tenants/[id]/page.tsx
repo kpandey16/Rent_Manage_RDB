@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/table";
 import { ArrowLeft, Phone, Mail, Calendar, IndianRupee, DoorOpen, Plus, Loader2 } from "lucide-react";
 import { AllocateRoomForm } from "@/components/forms/allocate-room-form";
+import { SetOpeningBalanceDialog } from "@/components/tenant/set-opening-balance-dialog";
 import { toast } from "sonner";
 
 interface Room {
@@ -69,41 +70,49 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasOpeningBalance, setHasOpeningBalance] = useState(false);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+
+      // Fetch tenant details
+      const tenantResponse = await fetch(`/api/tenants/${id}`);
+      if (!tenantResponse.ok) {
+        if (tenantResponse.status === 404) {
+          toast.error("Tenant not found");
+        } else {
+          throw new Error("Failed to fetch tenant details");
+        }
+        return;
+      }
+      const tenantData = await tenantResponse.json();
+      setTenant(tenantData.tenant);
+
+      // Fetch transactions
+      const transactionsResponse = await fetch(`/api/transactions?tenantId=${id}`);
+      if (transactionsResponse.ok) {
+        const transactionsData = await transactionsResponse.json();
+        const txns = transactionsData.transactions || [];
+        setTransactions(txns);
+
+        // Check if opening balance exists
+        const hasOpening = txns.some((t: Transaction) =>
+          t.type === 'adjustment' && t.description?.toLowerCase().includes('opening balance')
+        );
+        setHasOpeningBalance(hasOpening);
+      }
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      toast.error("Failed to load tenant details");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-
-        // Fetch tenant details
-        const tenantResponse = await fetch(`/api/tenants/${id}`);
-        if (!tenantResponse.ok) {
-          if (tenantResponse.status === 404) {
-            toast.error("Tenant not found");
-          } else {
-            throw new Error("Failed to fetch tenant details");
-          }
-          return;
-        }
-        const tenantData = await tenantResponse.json();
-        setTenant(tenantData.tenant);
-
-        // Fetch transactions
-        const transactionsResponse = await fetch(`/api/transactions?tenantId=${id}`);
-        if (transactionsResponse.ok) {
-          const transactionsData = await transactionsResponse.json();
-          setTransactions(transactionsData.transactions || []);
-        }
-      } catch (error) {
-        console.error("Error fetching data:", error);
-        toast.error("Failed to load tenant details");
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchData();
-  }, [id]);
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRoomAllocated = () => {
     // Refresh tenant data after room allocation
@@ -238,10 +247,22 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
       {/* Payment History */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <IndianRupee className="h-4 w-4" />
-            Payment History
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <IndianRupee className="h-4 w-4" />
+              Payment History
+            </CardTitle>
+            {!hasOpeningBalance && tenant && (
+              <SetOpeningBalanceDialog
+                tenantId={tenant.id}
+                tenantName={tenant.name}
+                moveInDate={tenant.rooms[0]?.moveInDate}
+                onSuccess={() => {
+                  fetchData();
+                }}
+              />
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {transactions.length === 0 ? (
