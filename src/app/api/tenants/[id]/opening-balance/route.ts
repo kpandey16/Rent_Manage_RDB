@@ -75,13 +75,11 @@ export async function POST(
     const ledgerId = generateId();
     const now = getCurrentDateTime();
 
-    // IMPORTANT: Negate the amount because in our accounting system:
-    // - Positive in ledger = tenant's favor (credit/payments)
-    // - Negative in ledger = landlord's favor (dues/charges)
-    // But user enters:
-    // - Positive = tenant owes (dues) → store as negative
-    // - Negative = tenant credit (advance) → store as positive
-    const ledgerAmount = -parseFloat(amount);
+    // Store amount as user entered (no negation needed):
+    // - Positive amount = tenant's credit/advance (tenant's favor)
+    // - Negative amount = tenant owes (landlord's favor)
+    // This matches how credits work in the system
+    const ledgerAmount = parseFloat(amount);
 
     // Create opening balance transaction using adjustment type with opening_balance subtype
     await db.execute({

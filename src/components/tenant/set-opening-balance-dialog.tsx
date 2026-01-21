@@ -120,9 +120,9 @@ export function SetOpeningBalanceDialog({
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription className="text-sm">
-              <strong>Positive amount:</strong> Tenant owes you (dues)
+              <strong>Positive amount:</strong> Tenant has paid in advance (credit)
               <br />
-              <strong>Negative amount:</strong> Tenant has paid in advance (credit)
+              <strong>Negative amount:</strong> Tenant owes you (dues)
             </AlertDescription>
           </Alert>
 
@@ -134,13 +134,13 @@ export function SetOpeningBalanceDialog({
               id="amount"
               type="number"
               step="0.01"
-              placeholder="Enter amount (e.g., 5000 or -3000)"
+              placeholder="Enter amount (e.g., -5000 for dues, 3000 for credit)"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               disabled={loading}
             />
             <p className="text-xs text-muted-foreground">
-              Use positive for dues, negative for advance payment
+              Use negative for dues, positive for advance payment/credit
             </p>
           </div>
 
