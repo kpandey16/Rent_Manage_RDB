@@ -61,7 +61,9 @@ interface Tenant {
   monthlyRent: number;
   securityDeposit: number;
   creditBalance: number;
-  totalDues: number;
+  totalRentDue: number; // Total unpaid rent
+  netBalance: number; // Balance after credits (can be negative)
+  totalDues: number; // DEPRECATED: Keeping for compatibility
   lastPaidMonth: string | null;
 }
 
@@ -188,15 +190,24 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
               <p className="text-lg font-semibold">{tenant.lastPaidMonth || "-"}</p>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Credit Balance</p>
+              <p className="text-sm text-muted-foreground">Total Rent Due</p>
+              <p className={`text-lg font-semibold ${tenant.totalRentDue > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                {tenant.totalRentDue > 0 ? `₹${tenant.totalRentDue.toLocaleString("en-IN")}` : "₹0"}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Credit/Advance</p>
               <p className={`text-lg font-semibold ${tenant.creditBalance > 0 ? 'text-green-600' : tenant.creditBalance < 0 ? 'text-red-600' : ''}`}>
                 {tenant.creditBalance > 0 ? '+' : tenant.creditBalance < 0 ? '-' : ''}₹{Math.abs(tenant.creditBalance).toLocaleString("en-IN")}
               </p>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Total Dues</p>
-              <p className={`text-lg font-semibold ${tenant.totalDues > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                {tenant.totalDues > 0 ? `₹${tenant.totalDues.toLocaleString("en-IN")}` : "₹0"}
+              <p className="text-sm text-muted-foreground">Net Balance</p>
+              <p className={`text-lg font-semibold ${tenant.netBalance > 0 ? 'text-red-600' : tenant.netBalance < 0 ? 'text-green-600' : ''}`}>
+                {tenant.netBalance > 0 ? `₹${tenant.netBalance.toLocaleString("en-IN")}` : tenant.netBalance < 0 ? `+₹${Math.abs(tenant.netBalance).toLocaleString("en-IN")}` : "₹0"}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {tenant.netBalance > 0 ? 'To pay' : tenant.netBalance < 0 ? 'Extra credit' : 'Settled'}
               </p>
             </div>
           </div>

@@ -156,11 +156,17 @@ export async function GET() {
           lastPaidMonth = `${monthNames[date.getMonth()]}-${year.substring(2)}`;
         }
 
+        // Calculate financial metrics
+        const totalRentDue = totalRentOwed; // Pure unpaid rent
+        const netBalance = totalRentOwed - ledgerTotal; // After credits
+
         return {
           ...tenant,
           monthly_rent: Number(tenant.monthly_rent || 0),
           credit_balance: balance > 0 ? balance : 0,
-          total_dues: Math.max(0, totalRentOwed - ledgerTotal),
+          total_rent_due: totalRentDue, // NEW: Unpaid rent ignoring credits
+          net_balance: netBalance, // NEW: Actual balance after credits (can be negative)
+          total_dues: Math.max(0, netBalance), // DEPRECATED: Keeping for compatibility
           last_paid_month: lastPaidMonth,
         };
       })

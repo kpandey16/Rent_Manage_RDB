@@ -152,9 +152,14 @@ export async function GET(
     // This will use the correct rent for each month based on effective dates
     const totalRentOwed = await calculateTotalRentOwed(id, db);
 
-    // Calculate total dues
-    // Total dues = Rent owed - Credits (payments made)
-    const totalDues = Math.max(0, totalRentOwed - ledgerTotal);
+    // Calculate financial metrics
+    // 1. totalRentDue = Unpaid rent (ignoring credits/adjustments)
+    // 2. netBalance = What tenant actually owes after applying credits
+    //    - Positive = tenant owes money
+    //    - Negative = tenant has excess credit
+    const totalRentDue = totalRentOwed; // Pure unpaid rent
+    const netBalance = totalRentOwed - ledgerTotal; // After credits
+    const totalDues = Math.max(0, netBalance); // For backward compatibility
 
     const tenantDetails = {
       ...tenant.rows[0],
@@ -162,7 +167,9 @@ export async function GET(
       monthlyRent,
       securityDeposit: Number(depositBalance.rows[0].balance),
       creditBalance: actualCreditBalance,
-      totalDues,
+      totalRentDue, // NEW: Unpaid rent ignoring credits
+      netBalance, // NEW: Actual balance after credits (can be negative)
+      totalDues, // DEPRECATED: Keeping for compatibility
       lastPaidMonth,
       nextUnpaidPeriod: nextUnpaidPeriod ? formatPeriod(nextUnpaidPeriod) : null,
       nextUnpaidPeriodRaw: nextUnpaidPeriod,
