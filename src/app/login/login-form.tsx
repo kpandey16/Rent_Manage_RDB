@@ -42,12 +42,15 @@ export default function LoginForm() {
         return;
       }
 
-      toast.success("Login successful");
-
       // Redirect to the page they came from, or to home
       const from = searchParams.get("from") || "/";
-      router.push(from);
-      router.refresh();
+
+      // Use replace instead of push to avoid back button issues
+      // Remove refresh() call as it causes navigation race conditions
+      router.replace(from);
+
+      // Show success toast after navigation starts
+      toast.success("Login successful");
     } catch (error) {
       console.error("Login error:", error);
       toast.error("An error occurred during login");

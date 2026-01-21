@@ -143,7 +143,6 @@ const styles = StyleSheet.create({
   adjustmentLabel: {
     fontSize: 9,
     color: '#64748b',
-    fontStyle: 'italic',
   },
   adjustmentValue: {
     fontSize: 9,

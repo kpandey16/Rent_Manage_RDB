@@ -46,9 +46,9 @@ export function Header() {
       });
 
       if (response.ok) {
+        // Use replace to avoid back button issues
+        router.replace("/login");
         toast.success("Logged out successfully");
-        router.push("/login");
-        router.refresh();
       } else {
         toast.error("An error occurred");
       }
