@@ -371,61 +371,63 @@ export default function LawnEventsPage() {
       </div>
 
       {/* Date Range Filter */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Filter by Date Range</CardTitle>
-          <CardDescription>
-            {isFiltered
-              ? "Showing filtered results"
-              : "View events and income for a specific period"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
-            <div className="flex-1 grid gap-2">
-              <Label htmlFor="filterFromDate">From Date</Label>
-              <Input
-                id="filterFromDate"
-                type="date"
-                value={filterFromDate}
-                onChange={(e) => setFilterFromDate(e.target.value)}
-              />
-            </div>
-            <div className="flex-1 grid gap-2">
-              <Label htmlFor="filterToDate">To Date</Label>
-              <Input
-                id="filterToDate"
-                type="date"
-                value={filterToDate}
-                onChange={(e) => setFilterToDate(e.target.value)}
-              />
-            </div>
-            <div className="flex gap-2 w-full sm:w-auto">
-              <Button
-                onClick={handleApplyFilter}
-                disabled={!filterFromDate && !filterToDate}
-                className="flex-1 sm:flex-initial"
-              >
-                Apply Filter
-              </Button>
-              {isFiltered && (
-                <Button variant="outline" onClick={handleClearFilter} className="flex-1 sm:flex-initial">
-                  Clear
+      <div className="sticky top-14 z-40 bg-background pb-3 -mx-4 px-4 md:static md:pb-0 md:mx-0 md:px-0">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Filter by Date Range</CardTitle>
+            <CardDescription>
+              {isFiltered
+                ? "Showing filtered results"
+                : "View events and income for a specific period"}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
+              <div className="flex-1 grid gap-2">
+                <Label htmlFor="filterFromDate">From Date</Label>
+                <Input
+                  id="filterFromDate"
+                  type="date"
+                  value={filterFromDate}
+                  onChange={(e) => setFilterFromDate(e.target.value)}
+                />
+              </div>
+              <div className="flex-1 grid gap-2">
+                <Label htmlFor="filterToDate">To Date</Label>
+                <Input
+                  id="filterToDate"
+                  type="date"
+                  value={filterToDate}
+                  onChange={(e) => setFilterToDate(e.target.value)}
+                />
+              </div>
+              <div className="flex gap-2 w-full sm:w-auto">
+                <Button
+                  onClick={handleApplyFilter}
+                  disabled={!filterFromDate && !filterToDate}
+                  className="flex-1 sm:flex-initial"
+                >
+                  Apply Filter
                 </Button>
-              )}
+                {isFiltered && (
+                  <Button variant="outline" onClick={handleClearFilter} className="flex-1 sm:flex-initial">
+                    Clear
+                  </Button>
+                )}
+              </div>
             </div>
-          </div>
-          {isFiltered && (filterFromDate || filterToDate) && (
-            <div className="mt-3 text-sm text-muted-foreground">
-              <p>
-                Showing data
-                {filterFromDate && ` from ${formatDate(filterFromDate)}`}
-                {filterToDate && ` to ${formatDate(filterToDate)}`}
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            {isFiltered && (filterFromDate || filterToDate) && (
+              <div className="mt-3 text-sm text-muted-foreground">
+                <p>
+                  Showing data
+                  {filterFromDate && ` from ${formatDate(filterFromDate)}`}
+                  {filterToDate && ` to ${formatDate(filterToDate)}`}
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Action Buttons */}
       <div className="flex gap-3">

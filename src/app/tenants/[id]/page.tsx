@@ -47,6 +47,7 @@ interface Transaction {
   documentId?: string | null;
   adjustments?: Adjustment[];
   totalAmount?: number;
+  collectedBy?: string | null;
 }
 
 interface Tenant {
@@ -313,6 +314,7 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
                       <p className="text-sm text-muted-foreground">
                         {new Date(transaction.transaction_date).toLocaleDateString("en-IN")}
                         {transaction.payment_method && ` • ${transaction.payment_method}`}
+                        {transaction.collectedBy && ` • Collected by: ${transaction.collectedBy}`}
                       </p>
                       {transaction.appliedTo && (
                         <p className="text-xs text-muted-foreground mt-1">
@@ -348,6 +350,7 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
                       <TableHead>Method</TableHead>
                       <TableHead>Applied To</TableHead>
                       <TableHead>Credit Balance</TableHead>
+                      <TableHead>Collected By</TableHead>
                       <TableHead>Notes</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -389,6 +392,9 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
                             ) : (
                               <span className="text-muted-foreground">-</span>
                             )}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {transaction.collectedBy || "-"}
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
                             {transaction.description || "-"}

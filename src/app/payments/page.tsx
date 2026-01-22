@@ -25,6 +25,7 @@ interface Transaction {
   created_at: string;
   appliedTo?: string;
   creditRemaining?: number | null;
+  collectedBy?: string | null;
 }
 
 export default function PaymentsPage() {
@@ -115,6 +116,7 @@ export default function PaymentsPage() {
                           <p className="text-sm text-muted-foreground">
                             {new Date(transaction.transaction_date).toLocaleDateString("en-IN")}
                             {transaction.payment_method && ` • ${transaction.payment_method}`}
+                            {transaction.collectedBy && ` • Collected by: ${transaction.collectedBy}`}
                           </p>
                           {transaction.appliedTo && (
                             <p className="text-xs text-muted-foreground">
