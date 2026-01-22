@@ -236,7 +236,7 @@ export default function Home() {
 
       {/* Tenant Overview Table */}
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-3 sticky top-14 z-40 bg-card rounded-t-lg md:static">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <CardTitle className="text-base">Tenant Overview</CardTitle>
             <div className="w-full md:w-64">
