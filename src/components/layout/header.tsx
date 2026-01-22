@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Menu, Bell, Home, Users, DoorOpen, CreditCard, BarChart3, Wallet, LogOut, User, Church } from "lucide-react";
+import { Menu, Bell, Home, Users, DoorOpen, CreditCard, BarChart3, Wallet, LogOut, User, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -35,7 +35,7 @@ export function Header() {
     { href: "/rooms", icon: DoorOpen, label: "Rooms" },
     { href: "/payments", icon: CreditCard, label: "Payments" },
     { href: "/cash-management", icon: Wallet, label: "Cash Management" },
-    { href: "/lawn-events", icon: Church, label: "Lawn Events" },
+    { href: "/lawn-events", icon: Building2, label: "Lawn Events" },
     { href: "/reports", icon: BarChart3, label: "Reports" },
   ];
 

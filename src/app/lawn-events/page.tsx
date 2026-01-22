@@ -381,7 +381,7 @@ export default function LawnEventsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col sm:flex-row gap-3 items-end">
+          <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
             <div className="flex-1 grid gap-2">
               <Label htmlFor="filterFromDate">From Date</Label>
               <Input
@@ -400,15 +400,16 @@ export default function LawnEventsPage() {
                 onChange={(e) => setFilterToDate(e.target.value)}
               />
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 w-full sm:w-auto">
               <Button
                 onClick={handleApplyFilter}
                 disabled={!filterFromDate && !filterToDate}
+                className="flex-1 sm:flex-initial"
               >
                 Apply Filter
               </Button>
               {isFiltered && (
-                <Button variant="outline" onClick={handleClearFilter}>
+                <Button variant="outline" onClick={handleClearFilter} className="flex-1 sm:flex-initial">
                   Clear
                 </Button>
               )}
