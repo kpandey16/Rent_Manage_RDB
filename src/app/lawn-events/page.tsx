@@ -83,16 +83,28 @@ export default function LawnEventsPage() {
   // Opening balance form state
   const [openingBalance, setOpeningBalance] = useState("");
 
+  // Date filter state
+  const [filterFromDate, setFilterFromDate] = useState("");
+  const [filterToDate, setFilterToDate] = useState("");
+  const [isFiltered, setIsFiltered] = useState(false);
+
   useEffect(() => {
     fetchData();
   }, []);
 
-  const fetchData = async () => {
+  const fetchData = async (fromDate?: string, toDate?: string) => {
     try {
       setLoading(true);
+
+      // Build query params
+      const params = new URLSearchParams();
+      if (fromDate) params.append('fromDate', fromDate);
+      if (toDate) params.append('toDate', toDate);
+      const queryString = params.toString();
+
       const [statusRes, eventsRes] = await Promise.all([
-        fetch("/api/lawn/status"),
-        fetch("/api/lawn/events"),
+        fetch(`/api/lawn/status${queryString ? `?${queryString}` : ''}`),
+        fetch(`/api/lawn/events${queryString ? `?${queryString}` : ''}`),
       ]);
 
       if (statusRes.ok) {
@@ -220,6 +232,22 @@ export default function LawnEventsPage() {
     }
   };
 
+  const handleApplyFilter = () => {
+    if (!filterFromDate && !filterToDate) {
+      toast.error("Please select at least one date");
+      return;
+    }
+    setIsFiltered(true);
+    fetchData(filterFromDate, filterToDate);
+  };
+
+  const handleClearFilter = () => {
+    setFilterFromDate("");
+    setFilterToDate("");
+    setIsFiltered(false);
+    fetchData();
+  };
+
   const formatCurrency = (amount: number) => {
     return `₹${amount.toLocaleString("en-IN")}`;
   };
@@ -341,6 +369,62 @@ export default function LawnEventsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Date Range Filter */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Filter by Date Range</CardTitle>
+          <CardDescription>
+            {isFiltered
+              ? "Showing filtered results"
+              : "View events and income for a specific period"}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col sm:flex-row gap-3 items-end">
+            <div className="flex-1 grid gap-2">
+              <Label htmlFor="filterFromDate">From Date</Label>
+              <Input
+                id="filterFromDate"
+                type="date"
+                value={filterFromDate}
+                onChange={(e) => setFilterFromDate(e.target.value)}
+              />
+            </div>
+            <div className="flex-1 grid gap-2">
+              <Label htmlFor="filterToDate">To Date</Label>
+              <Input
+                id="filterToDate"
+                type="date"
+                value={filterToDate}
+                onChange={(e) => setFilterToDate(e.target.value)}
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={handleApplyFilter}
+                disabled={!filterFromDate && !filterToDate}
+              >
+                Apply Filter
+              </Button>
+              {isFiltered && (
+                <Button variant="outline" onClick={handleClearFilter}>
+                  Clear
+                </Button>
+              )}
+            </div>
+          </div>
+          {isFiltered && (filterFromDate || filterToDate) && (
+            <div className="mt-3 text-sm text-muted-foreground">
+              <p>
+                Showing data
+                {filterFromDate && ` from ${formatDate(filterFromDate)}`}
+                {filterToDate && ` to ${formatDate(filterToDate)}`}
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Action Buttons */}
       <div className="flex gap-3">

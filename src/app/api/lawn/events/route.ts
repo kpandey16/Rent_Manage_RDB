@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db, generateId, getCurrentDateTime } from '@/lib/db';
 
 // GET /api/lawn/events - Get all events with running balance
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const fromDate = searchParams.get('fromDate');
+    const toDate = searchParams.get('toDate');
+
     // Get opening balance
     const openingBalanceResult = await db.execute({
       sql: 'SELECT value FROM lawn_settings WHERE key = ?',
@@ -14,18 +18,45 @@ export async function GET() {
       ? Number(openingBalanceResult.rows[0].value)
       : 0;
 
+    // Build SQL for filtered queries
+    let eventsSql = `SELECT id, event_date, booking_amount, customer_name, phone, notes, created_at
+                     FROM lawn_events`;
+    let withdrawalsSql = `SELECT id, amount, withdrawal_date, withdrawn_by, withdrawal_method, notes, created_at
+                          FROM lawn_withdrawals`;
+    const eventsArgs: any[] = [];
+    const withdrawalsArgs: any[] = [];
+
+    // Add date filters if provided
+    if (fromDate && toDate) {
+      eventsSql += ' WHERE event_date >= ? AND event_date <= ?';
+      eventsArgs.push(fromDate, toDate);
+      withdrawalsSql += ' WHERE withdrawal_date >= ? AND withdrawal_date <= ?';
+      withdrawalsArgs.push(fromDate, toDate);
+    } else if (fromDate) {
+      eventsSql += ' WHERE event_date >= ?';
+      eventsArgs.push(fromDate);
+      withdrawalsSql += ' WHERE withdrawal_date >= ?';
+      withdrawalsArgs.push(fromDate);
+    } else if (toDate) {
+      eventsSql += ' WHERE event_date <= ?';
+      eventsArgs.push(toDate);
+      withdrawalsSql += ' WHERE withdrawal_date <= ?';
+      withdrawalsArgs.push(toDate);
+    }
+
+    eventsSql += ' ORDER BY event_date DESC, created_at DESC';
+    withdrawalsSql += ' ORDER BY withdrawal_date DESC, created_at DESC';
+
     // Get all events
     const eventsResult = await db.execute({
-      sql: `SELECT id, event_date, booking_amount, customer_name, phone, notes, created_at
-            FROM lawn_events
-            ORDER BY event_date DESC, created_at DESC`,
+      sql: eventsSql,
+      args: eventsArgs,
     });
 
     // Get all withdrawals
     const withdrawalsResult = await db.execute({
-      sql: `SELECT id, amount, withdrawal_date, withdrawn_by, withdrawal_method, notes, created_at
-            FROM lawn_withdrawals
-            ORDER BY withdrawal_date DESC, created_at DESC`,
+      sql: withdrawalsSql,
+      args: withdrawalsArgs,
     });
 
     // Combine events and withdrawals, then sort by date
