@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/table";
 import { ArrowLeft, Phone, Mail, Calendar, IndianRupee, DoorOpen, Plus, Loader2 } from "lucide-react";
 import { AllocateRoomForm } from "@/components/forms/allocate-room-form";
+import { EditTenantForm } from "@/components/forms/edit-tenant-form";
 import { SetOpeningBalanceDialog } from "@/components/tenant/set-opening-balance-dialog";
 import { toast } from "sonner";
 
@@ -156,6 +157,13 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
           <h1 className="text-xl font-semibold">{tenant.name}</h1>
           <p className="text-sm text-muted-foreground">Tenant since {new Date(tenant.created_at).toLocaleDateString("en-IN", { month: "short", year: "numeric" })}</p>
         </div>
+        <EditTenantForm
+          tenantId={tenant.id}
+          currentName={tenant.name}
+          currentPhone={tenant.phone}
+          currentEmail={tenant.email}
+          onSuccess={fetchData}
+        />
         <Badge variant={tenant.is_active === 1 ? "default" : "secondary"}>
           {tenant.is_active === 1 ? "Active" : "Inactive"}
         </Badge>

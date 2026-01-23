@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { db, getCurrentDateTime } from "@/lib/db";
 
 // GET /api/rooms/[id] - Get room details with tenant and history
 export async function GET(
@@ -120,6 +120,70 @@ export async function GET(
         error: "Failed to fetch room details",
         details: error instanceof Error ? error.message : String(error)
       },
+      { status: 500 }
+    );
+  }
+}
+
+// PUT /api/rooms/[id] - Update room details
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const body = await request.json();
+    const { code, name, description } = body;
+
+    // Validation
+    if (!code) {
+      return NextResponse.json(
+        { error: "Room code is required" },
+        { status: 400 }
+      );
+    }
+
+    // Check if room exists
+    const existingRoom = await db.execute({
+      sql: "SELECT id FROM rooms WHERE id = ?",
+      args: [id],
+    });
+
+    if (existingRoom.rows.length === 0) {
+      return NextResponse.json(
+        { error: "Room not found" },
+        { status: 404 }
+      );
+    }
+
+    // Check if new code conflicts with another room
+    const duplicateRoom = await db.execute({
+      sql: "SELECT id FROM rooms WHERE code = ? AND id != ?",
+      args: [code, id],
+    });
+
+    if (duplicateRoom.rows.length > 0) {
+      return NextResponse.json(
+        { error: "Room code already exists" },
+        { status: 400 }
+      );
+    }
+
+    // Update room
+    await db.execute({
+      sql: `UPDATE rooms
+            SET code = ?, name = ?, description = ?, updated_at = ?
+            WHERE id = ?`,
+      args: [code, name || null, description || null, getCurrentDateTime(), id],
+    });
+
+    return NextResponse.json({
+      message: "Room updated successfully",
+    });
+  } catch (error) {
+    console.error("Error updating room:", error);
+    return NextResponse.json(
+      { error: "Failed to update room" },
       { status: 500 }
     );
   }

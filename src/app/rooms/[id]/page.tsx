@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/table";
 import { ArrowLeft, User, IndianRupee, Calendar, History, Edit, Loader2 } from "lucide-react";
 import { AllocateRoomForm } from "@/components/forms/allocate-room-form";
+import { EditRoomForm } from "@/components/forms/edit-room-form";
 import { UpdateRentForm } from "@/components/forms/update-rent-form";
 import { toast } from "sonner";
 
@@ -56,31 +57,31 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
   const [room, setRoom] = useState<Room | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchRoomDetails = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch(`/api/rooms/${id}`);
-        if (!response.ok) {
-          if (response.status === 404) {
-            toast.error("Room not found");
-          } else {
-            throw new Error("Failed to fetch room details");
-          }
-          return;
+  const fetchRoomDetails = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/rooms/${id}`);
+      if (!response.ok) {
+        if (response.status === 404) {
+          toast.error("Room not found");
+        } else {
+          throw new Error("Failed to fetch room details");
         }
-        const data = await response.json();
-        setRoom(data.room);
-      } catch (error) {
-        console.error("Error fetching room details:", error);
-        toast.error("Failed to load room details");
-      } finally {
-        setLoading(false);
+        return;
       }
-    };
+      const data = await response.json();
+      setRoom(data.room);
+    } catch (error) {
+      console.error("Error fetching room details:", error);
+      toast.error("Failed to load room details");
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchRoomDetails();
-  }, [id]);
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRoomAllocated = () => {
     // Refresh room data after allocation
@@ -121,6 +122,13 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
           <h1 className="text-xl font-semibold">{room.code}</h1>
           <p className="text-sm text-muted-foreground">{room.name}</p>
         </div>
+        <EditRoomForm
+          roomId={room.id}
+          currentCode={room.code}
+          currentName={room.name}
+          currentDescription={room.description}
+          onSuccess={fetchRoomDetails}
+        />
         <Badge variant={room.status === "occupied" ? "default" : "outline"}>
           {room.status}
         </Badge>

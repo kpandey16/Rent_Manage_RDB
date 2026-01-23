@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { db, getCurrentDateTime } from "@/lib/db";
 import { calculateTotalRentOwed, calculateUnpaidRent, getRentForPeriod } from "@/lib/rent-calculator";
 
 // GET /api/tenants/[id] - Get tenant details with financial information
@@ -182,6 +182,57 @@ export async function GET(
     console.error("Error fetching tenant details:", error);
     return NextResponse.json(
       { error: "Failed to fetch tenant details" },
+      { status: 500 }
+    );
+  }
+}
+
+// PUT /api/tenants/[id] - Update tenant details
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const body = await request.json();
+    const { name, phone, email } = body;
+
+    // Validation
+    if (!name || !phone) {
+      return NextResponse.json(
+        { error: "Name and phone are required" },
+        { status: 400 }
+      );
+    }
+
+    // Check if tenant exists
+    const existingTenant = await db.execute({
+      sql: "SELECT id FROM tenants WHERE id = ?",
+      args: [id],
+    });
+
+    if (existingTenant.rows.length === 0) {
+      return NextResponse.json(
+        { error: "Tenant not found" },
+        { status: 404 }
+      );
+    }
+
+    // Update tenant
+    await db.execute({
+      sql: `UPDATE tenants
+            SET name = ?, phone = ?, email = ?, updated_at = ?
+            WHERE id = ?`,
+      args: [name, phone, email || null, getCurrentDateTime(), id],
+    });
+
+    return NextResponse.json({
+      message: "Tenant updated successfully",
+    });
+  } catch (error) {
+    console.error("Error updating tenant:", error);
+    return NextResponse.json(
+      { error: "Failed to update tenant" },
       { status: 500 }
     );
   }
