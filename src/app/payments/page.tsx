@@ -35,6 +35,15 @@ export default function PaymentsPage() {
   const [rollbackDialogOpen, setRollbackDialogOpen] = useState(false);
   const [selectedLedgerId, setSelectedLedgerId] = useState<string | null>(null);
 
+  // Format date as DD-MMM-YY
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = date.toLocaleDateString('en-US', { month: 'short' });
+    const year = String(date.getFullYear()).slice(-2);
+    return `${day}-${month}-${year}`;
+  };
+
   useEffect(() => {
     fetchTransactions();
   }, []);
@@ -114,7 +123,7 @@ export default function PaymentsPage() {
                             <span className="font-medium">{transaction.tenant_name}</span>
                           </div>
                           <p className="text-sm text-muted-foreground">
-                            {new Date(transaction.transaction_date).toLocaleDateString("en-IN")}
+                            {formatDate(transaction.transaction_date)}
                             {transaction.payment_method && ` • ${transaction.payment_method}`}
                             {transaction.collectedBy && ` • Collected by: ${transaction.collectedBy}`}
                           </p>

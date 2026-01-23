@@ -14,9 +14,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, Phone, Mail, Calendar, IndianRupee, DoorOpen, Plus, Loader2 } from "lucide-react";
+import { ArrowLeft, Phone, Mail, Calendar, IndianRupee, DoorOpen, Plus, Loader2, CreditCard } from "lucide-react";
 import { AllocateRoomForm } from "@/components/forms/allocate-room-form";
 import { EditTenantForm } from "@/components/forms/edit-tenant-form";
+import { RecordPaymentForm } from "@/components/forms/record-payment-form";
 import { SetOpeningBalanceDialog } from "@/components/tenant/set-opening-balance-dialog";
 import { toast } from "sonner";
 
@@ -272,16 +273,30 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
               <IndianRupee className="h-4 w-4" />
               Payment History
             </CardTitle>
-            {!hasOpeningBalance && tenant && (
-              <SetOpeningBalanceDialog
-                tenantId={tenant.id}
-                tenantName={tenant.name}
-                moveInDate={tenant.rooms[0]?.moveInDate}
-                onSuccess={() => {
+            <div className="flex items-center gap-2">
+              <RecordPaymentForm
+                preSelectedTenantId={tenant.id}
+                onSubmit={() => {
                   fetchData();
                 }}
+                trigger={
+                  <Button size="sm">
+                    <CreditCard className="h-4 w-4 mr-1" />
+                    Record Payment
+                  </Button>
+                }
               />
-            )}
+              {!hasOpeningBalance && tenant && (
+                <SetOpeningBalanceDialog
+                  tenantId={tenant.id}
+                  tenantName={tenant.name}
+                  moveInDate={tenant.rooms[0]?.moveInDate}
+                  onSuccess={() => {
+                    fetchData();
+                  }}
+                />
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>

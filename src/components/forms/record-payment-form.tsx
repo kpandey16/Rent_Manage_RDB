@@ -81,6 +81,7 @@ const paymentMethods = [
 interface RecordPaymentFormProps {
   trigger?: React.ReactNode;
   onSubmit?: (data: PaymentFormData) => void;
+  preSelectedTenantId?: string; // Pre-select a tenant when opening the form
 }
 
 export interface PaymentFormData {
@@ -97,7 +98,7 @@ export interface PaymentFormData {
   autoApplyToRent?: boolean;
 }
 
-export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps) {
+export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: RecordPaymentFormProps) {
   const [open, setOpen] = useState(false);
   const [tenantComboboxOpen, setTenantComboboxOpen] = useState(false);
   const [tenants, setTenants] = useState<Tenant[]>([]);
@@ -124,7 +125,7 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
       fetchTenants();
       // Reset form when dialog opens
       setFormData({
-        tenantId: "",
+        tenantId: preSelectedTenantId || "", // Use pre-selected tenant if provided
         amount: 0,
         type: "payment",
         method: "cash",
@@ -138,7 +139,7 @@ export function RecordPaymentForm({ trigger, onSubmit }: RecordPaymentFormProps)
       setSelectedTenant(null);
       setShowAdjustments(false);
     }
-  }, [open]);
+  }, [open, preSelectedTenantId]);
 
   // Fetch tenant details when tenant is selected
   useEffect(() => {

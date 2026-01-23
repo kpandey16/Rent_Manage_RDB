@@ -112,7 +112,7 @@ export function UpdateRentForm({ roomId, roomCode, currentRent, trigger, onSucce
                   id="newRent"
                   type="number"
                   min="0"
-                  step="100"
+                  step="1"
                   value={formData.newRent || ""}
                   onChange={(e) => setFormData((prev) => ({ ...prev, newRent: Number(e.target.value) }))}
                   className="pl-7"
