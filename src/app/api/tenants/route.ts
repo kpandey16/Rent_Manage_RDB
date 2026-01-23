@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, generateId, getCurrentDateTime } from "@/lib/db";
-import { calculateTotalRentOwed, calculateUnpaidRent } from "@/lib/rent-calculator";
+// OLD: TypeScript-based calculation (N+1 queries - slow)
+// import { calculateTotalRentOwed, calculateUnpaidRent } from "@/lib/rent-calculator";
 
 // POST /api/tenants - Create a new tenant
 export async function POST(request: NextRequest) {
@@ -96,6 +97,182 @@ export async function POST(request: NextRequest) {
   }
 }
 
+/**
+ * Calculate total rent owed using pure SQL (OPTIMIZED)
+ * Replaces calculateTotalRentOwed() - uses ~2 queries instead of N+1
+ */
+async function calculateTotalRentOwedSQL(tenantId: string, db: any) {
+  try {
+    const result = await db.execute({
+      sql: `
+        WITH RECURSIVE
+          -- Get tenant's active rooms
+          tenant_rooms_data AS (
+            SELECT
+              tr.room_id,
+              tr.move_in_date,
+              COALESCE(tr.move_out_date, DATE('now')) as move_out_date
+            FROM tenant_rooms tr
+            WHERE tr.tenant_id = ?
+              AND tr.is_active = 1
+          ),
+
+          -- Generate all months from move-in to today for each room
+          months AS (
+            SELECT
+              room_id,
+              DATE(SUBSTR(move_in_date, 1, 7) || '-01') as period_date,
+              move_in_date,
+              move_out_date
+            FROM tenant_rooms_data
+
+            UNION ALL
+
+            SELECT
+              m.room_id,
+              DATE(m.period_date, '+1 month') as period_date,
+              m.move_in_date,
+              m.move_out_date
+            FROM months m
+            WHERE DATE(m.period_date, '+1 month') <= DATE(SUBSTR(m.move_out_date, 1, 7) || '-01')
+          ),
+
+          -- Get rent for each period considering rent updates
+          period_rents AS (
+            SELECT
+              m.room_id,
+              m.period_date,
+              STRFTIME('%Y-%m', m.period_date) as period,
+              -- Get the most recent rent update effective before or during this period
+              COALESCE(
+                (SELECT ru.new_rent
+                 FROM rent_updates ru
+                 WHERE ru.room_id = m.room_id
+                   AND ru.effective_from <= m.period_date
+                 ORDER BY ru.effective_from DESC
+                 LIMIT 1),
+                -- If no rent update found, get the old_rent from earliest update
+                (SELECT ru.old_rent
+                 FROM rent_updates ru
+                 WHERE ru.room_id = m.room_id
+                 ORDER BY ru.effective_from ASC
+                 LIMIT 1),
+                -- Final fallback: current monthly_rent from rooms table
+                (SELECT r.monthly_rent FROM rooms r WHERE r.id = m.room_id)
+              ) as rent_amount
+            FROM months m
+          )
+
+        -- Sum all period rents
+        SELECT
+          COALESCE(SUM(rent_amount), 0) as total_rent_owed,
+          COUNT(*) as total_months
+        FROM period_rents
+      `,
+      args: [tenantId],
+    });
+
+    if (result.rows.length > 0) {
+      return Number(result.rows[0].total_rent_owed || 0);
+    }
+
+    return 0;
+  } catch (error) {
+    console.error(`Error calculating total rent owed for tenant ${tenantId}:`, error);
+    return 0;
+  }
+}
+
+/**
+ * Calculate unpaid rent using pure SQL (OPTIMIZED)
+ * Replaces calculateUnpaidRent() - uses ~2 queries instead of N+1
+ */
+async function calculateUnpaidRentSQL(tenantId: string, db: any) {
+  try {
+    const result = await db.execute({
+      sql: `
+        WITH RECURSIVE
+          -- Get tenant's active rooms
+          tenant_rooms_data AS (
+            SELECT
+              tr.room_id,
+              tr.move_in_date,
+              COALESCE(tr.move_out_date, DATE('now')) as move_out_date
+            FROM tenant_rooms tr
+            WHERE tr.tenant_id = ?
+              AND tr.is_active = 1
+          ),
+
+          -- Generate all months from move-in to today for each room
+          months AS (
+            SELECT
+              room_id,
+              DATE(SUBSTR(move_in_date, 1, 7) || '-01') as period_date,
+              move_in_date,
+              move_out_date
+            FROM tenant_rooms_data
+
+            UNION ALL
+
+            SELECT
+              m.room_id,
+              DATE(m.period_date, '+1 month') as period_date,
+              m.move_in_date,
+              m.move_out_date
+            FROM months m
+            WHERE DATE(m.period_date, '+1 month') <= DATE(SUBSTR(m.move_out_date, 1, 7) || '-01')
+          ),
+
+          -- Get rent for each period considering rent updates
+          period_rents AS (
+            SELECT
+              m.room_id,
+              STRFTIME('%Y-%m', m.period_date) as period,
+              COALESCE(
+                (SELECT ru.new_rent
+                 FROM rent_updates ru
+                 WHERE ru.room_id = m.room_id
+                   AND ru.effective_from <= m.period_date
+                 ORDER BY ru.effective_from DESC
+                 LIMIT 1),
+                (SELECT ru.old_rent
+                 FROM rent_updates ru
+                 WHERE ru.room_id = m.room_id
+                 ORDER BY ru.effective_from ASC
+                 LIMIT 1),
+                (SELECT r.monthly_rent FROM rooms r WHERE r.id = m.room_id)
+              ) as rent_amount
+            FROM months m
+          ),
+
+          -- Get all paid periods for this tenant
+          paid_periods AS (
+            SELECT DISTINCT for_period
+            FROM rent_payments
+            WHERE tenant_id = ?
+          )
+
+        -- Sum only UNPAID period rents
+        SELECT
+          COALESCE(SUM(pr.rent_amount), 0) as total_unpaid_rent,
+          COUNT(*) as unpaid_months
+        FROM period_rents pr
+        WHERE pr.period NOT IN (SELECT for_period FROM paid_periods)
+      `,
+      args: [tenantId, tenantId],
+    });
+
+    if (result.rows.length > 0) {
+      return Number(result.rows[0].total_unpaid_rent || 0);
+    }
+
+    return 0;
+  } catch (error) {
+    console.error(`Error calculating unpaid rent for tenant ${tenantId}:`, error);
+    return 0;
+  }
+}
+
 // GET /api/tenants - Get all tenants
 export async function GET() {
   try {
@@ -144,11 +321,15 @@ export async function GET() {
         const paymentsTotal = Number(tenant.total_rent_paid || 0);
         const balance = ledgerTotal - paymentsTotal;
 
-        // Calculate total rent owed using proper calculation
-        const totalRentOwed = await calculateTotalRentOwed(tenant.id, db);
+        // Calculate total rent owed using SQL-optimized calculation
+        const totalRentOwed = await calculateTotalRentOwedSQL(tenant.id, db);
+        // OLD (commented out - slow N+1 queries):
+        // const totalRentOwed = await calculateTotalRentOwed(tenant.id, db);
 
-        // Calculate unpaid rent (excluding paid periods)
-        const totalRentDue = await calculateUnpaidRent(tenant.id, db);
+        // Calculate unpaid rent using SQL-optimized calculation
+        const totalRentDue = await calculateUnpaidRentSQL(tenant.id, db);
+        // OLD (commented out - slow N+1 queries):
+        // const totalRentDue = await calculateUnpaidRent(tenant.id, db);
 
         // Format last paid period (YYYY-MM to MMM-YY)
         let lastPaidMonth = "Never";
