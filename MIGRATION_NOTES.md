@@ -1,6 +1,6 @@
 # Migration Notes
 
-## Pending Migration: Add created_by to tenant_ledger
+## Pending Migration 1: Add created_by to tenant_ledger
 
 **Date**: 2026-01-22
 
@@ -57,6 +57,36 @@ node scripts/reset_db.js
 - Users table (login credentials)
 
 ⚠️ **WARNING**: This action is IRREVERSIBLE! Only use in development or when you're absolutely sure.
+
+---
+
+## Pending Migration 2: Add operator_adjustments table
+
+**Date**: 2026-01-23
+
+### What it does:
+Adds an `operator_adjustments` table to allow manual adjustments to operator balance.
+
+### How to run:
+```bash
+node scripts/add-operator-adjustments.js
+```
+
+### Files:
+- `scripts/add-operator-adjustments.sql` - SQL migration
+- `scripts/add-operator-adjustments.js` - Migration runner script
+
+### Adjustment Types:
+1. **Opening Balance** - Set initial cash when starting the system
+2. **Add Cash** - Add external money (personal funds, loans)
+3. **Remove Cash** - Remove cash for corrections or personal use
+4. **Reconciliation** - Adjust after physical cash counting
+
+### Important:
+- All adjustments require mandatory notes explaining the reason
+- Tracks who made the adjustment (audit trail)
+- Affects operator balance calculation
+- UI accessible via "Adjust Balance" dropdown in Cash Management
 
 ---
 

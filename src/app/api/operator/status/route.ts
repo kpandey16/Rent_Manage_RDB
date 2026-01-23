@@ -37,11 +37,36 @@ export async function GET(request: NextRequest) {
       args: [],
     });
 
+    // Get all time adjustments
+    const allTimeAdjustmentsResult = await db.execute({
+      sql: `SELECT
+              adjustment_type,
+              COALESCE(SUM(amount), 0) as total
+            FROM operator_adjustments
+            GROUP BY adjustment_type`,
+      args: [],
+    });
+
+    // Calculate adjustment impact on balance
+    let adjustmentsTotal = 0;
+    allTimeAdjustmentsResult.rows.forEach((row: any) => {
+      const type = row.adjustment_type;
+      const amount = Number(row.total);
+
+      if (type === 'opening_balance' || type === 'add_cash') {
+        adjustmentsTotal += amount;
+      } else if (type === 'remove_cash') {
+        adjustmentsTotal -= amount;
+      } else if (type === 'reconciliation') {
+        adjustmentsTotal += amount; // Reconciliation can be positive or negative
+      }
+    });
+
     // Calculate TRUE available balance (all time)
     const allTimeCollections = Number(allTimeCollectionsResult.rows[0].total);
     const allTimeExpenses = Number(allTimeExpensesResult.rows[0].total);
     const allTimeWithdrawals = Number(allTimeWithdrawalsResult.rows[0].total);
-    const availableBalance = allTimeCollections - allTimeExpenses - allTimeWithdrawals;
+    const availableBalance = allTimeCollections - allTimeExpenses - allTimeWithdrawals + adjustmentsTotal;
 
     // Get collections by payment method (for display, since last withdrawal)
     let collectionsQuery = `
@@ -164,7 +189,8 @@ export async function GET(request: NextRequest) {
       totalCollections: totalCollectionsSince, // Since specified timestamp (for display)
       totalExpenses: totalExpensesSince, // Since specified timestamp (for display)
       totalWithdrawals: totalWithdrawalsSince, // Since specified timestamp (for display)
-      availableBalance, // TRUE balance = all collections - all expenses - all withdrawals
+      availableBalance, // TRUE balance = all collections - all expenses - all withdrawals + adjustments
+      adjustmentsTotal, // Total impact of adjustments
       collectionsByMethod,
       expensesByCategory,
     });

@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RecordExpenseForm } from "@/components/forms/record-expense-form";
 import { RecordWithdrawalForm } from "@/components/forms/record-withdrawal-form";
+import { OperatorAdjustmentForm } from "@/components/forms/operator-adjustment-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -284,12 +285,13 @@ export default function CashManagementPage() {
               <CardTitle>Quick Actions</CardTitle>
               <CardDescription>Record new transactions</CardDescription>
             </CardHeader>
-            <CardContent className="flex gap-3">
+            <CardContent className="flex flex-wrap gap-3">
               <RecordWithdrawalForm
                 availableBalance={status?.availableBalance}
                 onSuccess={fetchData}
               />
               <RecordExpenseForm onSuccess={fetchData} />
+              <OperatorAdjustmentForm onSuccess={fetchData} />
             </CardContent>
           </Card>
 

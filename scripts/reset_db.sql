@@ -68,6 +68,9 @@ DELETE FROM operator_expenses;
 -- Delete operator withdrawals
 DELETE FROM operator_withdrawals;
 
+-- Delete operator adjustments
+DELETE FROM operator_adjustments;
+
 -- =========================================
 -- SYSTEM TABLES
 -- =========================================
