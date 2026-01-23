@@ -42,10 +42,45 @@ interface Withdrawal {
   created_at: string;
 }
 
+interface Adjustment {
+  id: string;
+  amount: number;
+  adjustmentType: string;
+  adjustmentDate: string;
+  notes: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+interface Collection {
+  id: string;
+  amount: number;
+  payment_method: string;
+  transaction_date: string;
+  tenant_name: string;
+  created_at: string;
+}
+
+interface UnifiedTransaction {
+  id: string;
+  date: string;
+  type: 'collection' | 'expense' | 'withdrawal' | 'adjustment';
+  amount: number;
+  description: string;
+  notes?: string;
+  category?: string;
+  beforeBalance: number;
+  afterBalance: number;
+  createdAt: string;
+}
+
 export default function CashManagementPage() {
   const [status, setStatus] = useState<CashStatus | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
+  const [adjustments, setAdjustments] = useState<Adjustment[]>([]);
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [unifiedTransactions, setUnifiedTransactions] = useState<UnifiedTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -64,31 +99,215 @@ export default function CashManagementPage() {
         historyParams.set("sinceDate", dateFrom);
       }
 
-      const [statusRes, expensesRes, withdrawalsRes] = await Promise.all([
+      const [statusRes, expensesRes, withdrawalsRes, adjustmentsRes, collectionsRes] = await Promise.all([
         fetch(`/api/operator/status?${statusParams}`),
         fetch(`/api/operator/expenses?${historyParams}`),
         fetch(`/api/operator/withdrawals?${historyParams}`),
+        fetch(`/api/operator/adjustments`),
+        fetch(`/api/transactions`), // Get all collections
       ]);
 
+      let statusData = null;
+      let expensesData: Expense[] = [];
+      let withdrawalsData: Withdrawal[] = [];
+      let adjustmentsData: Adjustment[] = [];
+      let paymentTransactions: Collection[] = [];
+
       if (statusRes.ok) {
-        const statusData = await statusRes.json();
+        statusData = await statusRes.json();
         setStatus(statusData);
       }
 
       if (expensesRes.ok) {
-        const expensesData = await expensesRes.json();
-        setExpenses(expensesData.expenses || []);
+        const data = await expensesRes.json();
+        expensesData = data.expenses || [];
+        setExpenses(expensesData);
       }
 
       if (withdrawalsRes.ok) {
-        const withdrawalsData = await withdrawalsRes.json();
-        setWithdrawals(withdrawalsData.withdrawals || []);
+        const data = await withdrawalsRes.json();
+        withdrawalsData = data.withdrawals || [];
+        setWithdrawals(withdrawalsData);
+      }
+
+      if (adjustmentsRes.ok) {
+        const data = await adjustmentsRes.json();
+        adjustmentsData = data.adjustments || [];
+        setAdjustments(adjustmentsData);
+      }
+
+      if (collectionsRes.ok) {
+        const collectionsData = await collectionsRes.json();
+        // Filter only payment type transactions
+        paymentTransactions = (collectionsData.transactions || [])
+          .filter((t: any) => t.type === 'payment')
+          .map((t: any) => ({
+            id: t.id,
+            amount: Number(t.amount),
+            payment_method: t.payment_method,
+            transaction_date: t.transaction_date,
+            tenant_name: t.tenant_name,
+            created_at: t.created_at,
+          }));
+        setCollections(paymentTransactions);
+      }
+
+      // Build unified transaction history after all data is fetched
+      if (statusData && statusRes.ok && expensesRes.ok && withdrawalsRes.ok && adjustmentsRes.ok && collectionsRes.ok) {
+        buildUnifiedHistory(
+          statusData,
+          expensesData,
+          withdrawalsData,
+          adjustmentsData,
+          paymentTransactions
+        );
       }
     } catch (error) {
       console.error("Error fetching cash management data:", error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const buildUnifiedHistory = (
+    statusData: CashStatus,
+    expensesData: Expense[],
+    withdrawalsData: Withdrawal[],
+    adjustmentsData: Adjustment[],
+    collectionsData: Collection[]
+  ) => {
+    const unified: UnifiedTransaction[] = [];
+
+    // Add collections
+    collectionsData.forEach((collection) => {
+      unified.push({
+        id: collection.id,
+        date: collection.transaction_date,
+        type: 'collection',
+        amount: collection.amount,
+        description: `Rent collection from ${collection.tenant_name}`,
+        notes: `Payment method: ${formatMethod(collection.payment_method)}`,
+        beforeBalance: 0, // Will calculate below
+        afterBalance: 0, // Will calculate below
+        createdAt: collection.created_at,
+      });
+    });
+
+    // Add expenses
+    expensesData.forEach((expense) => {
+      unified.push({
+        id: expense.id,
+        date: expense.expense_date,
+        type: 'expense',
+        amount: expense.amount,
+        description: expense.description,
+        category: formatCategory(expense.category),
+        notes: `Recorded by: ${expense.recorded_by}`,
+        beforeBalance: 0,
+        afterBalance: 0,
+        createdAt: expense.created_at,
+      });
+    });
+
+    // Add withdrawals
+    withdrawalsData.forEach((withdrawal) => {
+      unified.push({
+        id: withdrawal.id,
+        date: withdrawal.withdrawal_date,
+        type: 'withdrawal',
+        amount: withdrawal.amount,
+        description: `Admin withdrawal via ${formatMethod(withdrawal.withdrawal_method)}`,
+        notes: withdrawal.notes || `Withdrawn by: ${withdrawal.withdrawn_by}`,
+        beforeBalance: 0,
+        afterBalance: 0,
+        createdAt: withdrawal.created_at,
+      });
+    });
+
+    // Add adjustments
+    adjustmentsData.forEach((adjustment) => {
+      let description = '';
+      switch (adjustment.adjustmentType) {
+        case 'opening_balance':
+          description = 'Opening Balance';
+          break;
+        case 'add_cash':
+          description = 'Cash Added';
+          break;
+        case 'remove_cash':
+          description = 'Cash Removed';
+          break;
+        case 'reconciliation':
+          description = 'Balance Reconciliation';
+          break;
+        default:
+          description = 'Balance Adjustment';
+      }
+
+      unified.push({
+        id: adjustment.id,
+        date: adjustment.adjustmentDate,
+        type: 'adjustment',
+        amount: adjustment.amount,
+        description,
+        notes: `${adjustment.notes} (by ${adjustment.createdBy})`,
+        beforeBalance: 0,
+        afterBalance: 0,
+        createdAt: adjustment.createdAt,
+      });
+    });
+
+    // Sort by date (newest first), then by created_at
+    unified.sort((a, b) => {
+      const dateCompare = new Date(b.date).getTime() - new Date(a.date).getTime();
+      if (dateCompare !== 0) return dateCompare;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+
+    // Calculate running balance (working backwards from current balance)
+    let currentBalance = statusData.availableBalance;
+
+    unified.forEach((transaction) => {
+      transaction.afterBalance = currentBalance;
+
+      // Calculate before balance based on transaction type
+      switch (transaction.type) {
+        case 'collection':
+          // Before collecting, we had less
+          transaction.beforeBalance = currentBalance - transaction.amount;
+          currentBalance = transaction.beforeBalance;
+          break;
+        case 'expense':
+          // Before spending, we had more
+          transaction.beforeBalance = currentBalance + transaction.amount;
+          currentBalance = transaction.beforeBalance;
+          break;
+        case 'withdrawal':
+          // Before withdrawal, we had more
+          transaction.beforeBalance = currentBalance + transaction.amount;
+          currentBalance = transaction.beforeBalance;
+          break;
+        case 'adjustment':
+          // Adjustments - need to reverse the impact
+          // If it was opening_balance or add_cash, it increased balance
+          // If it was remove_cash, amount is stored positive but decreased balance
+          // If it was reconciliation, amount can be positive or negative
+          const adjustmentData = adjustmentsData.find(a => a.id === transaction.id);
+          if (adjustmentData) {
+            if (adjustmentData.adjustmentType === 'opening_balance' || adjustmentData.adjustmentType === 'add_cash') {
+              transaction.beforeBalance = currentBalance - adjustmentData.amount;
+            } else if (adjustmentData.adjustmentType === 'remove_cash') {
+              transaction.beforeBalance = currentBalance + adjustmentData.amount;
+            } else if (adjustmentData.adjustmentType === 'reconciliation') {
+              transaction.beforeBalance = currentBalance - adjustmentData.amount;
+            }
+          }
+          currentBalance = transaction.beforeBalance;
+          break;
+      }
+    });
+
+    setUnifiedTransactions(unified);
   };
 
   useEffect(() => {
@@ -213,6 +432,7 @@ export default function CashManagementPage() {
       <Tabs defaultValue="dashboard" className="space-y-4">
         <TabsList>
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+          <TabsTrigger value="history">Transaction History</TabsTrigger>
           <TabsTrigger value="withdrawals">Withdrawals History</TabsTrigger>
           <TabsTrigger value="expenses">Expenses History</TabsTrigger>
         </TabsList>
@@ -345,6 +565,117 @@ export default function CashManagementPage() {
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">No expenses recorded</p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="history" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Unified Transaction History</CardTitle>
+              <CardDescription>All collections, expenses, withdrawals, and adjustments in chronological order</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {unifiedTransactions.length > 0 ? (
+                <div className="space-y-4">
+                  {unifiedTransactions.map((transaction) => {
+                    // Determine styling based on transaction type
+                    let typeColor = '';
+                    let typeLabel = '';
+                    let amountColor = '';
+                    let amountSign = '';
+
+                    switch (transaction.type) {
+                      case 'collection':
+                        typeColor = 'bg-green-100 text-green-800';
+                        typeLabel = 'Collection';
+                        amountColor = 'text-green-600';
+                        amountSign = '+';
+                        break;
+                      case 'expense':
+                        typeColor = 'bg-orange-100 text-orange-800';
+                        typeLabel = 'Expense';
+                        amountColor = 'text-orange-600';
+                        amountSign = '-';
+                        break;
+                      case 'withdrawal':
+                        typeColor = 'bg-red-100 text-red-800';
+                        typeLabel = 'Withdrawal';
+                        amountColor = 'text-red-600';
+                        amountSign = '-';
+                        break;
+                      case 'adjustment':
+                        typeColor = 'bg-purple-100 text-purple-800';
+                        typeLabel = 'Adjustment';
+                        // Determine sign based on amount and type
+                        const adj = adjustments.find(a => a.id === transaction.id);
+                        if (adj) {
+                          if (adj.adjustmentType === 'remove_cash') {
+                            amountSign = '-';
+                            amountColor = 'text-purple-600';
+                          } else if (adj.adjustmentType === 'reconciliation') {
+                            amountSign = adj.amount >= 0 ? '+' : '';
+                            amountColor = adj.amount >= 0 ? 'text-purple-600' : 'text-purple-600';
+                          } else {
+                            amountSign = '+';
+                            amountColor = 'text-purple-600';
+                          }
+                        }
+                        break;
+                    }
+
+                    return (
+                      <div key={transaction.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className={`text-xs px-2 py-0.5 rounded font-medium ${typeColor}`}>
+                                {typeLabel}
+                              </span>
+                              <span className="text-sm text-muted-foreground">
+                                {formatDate(transaction.date)}
+                              </span>
+                              {transaction.category && (
+                                <span className="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">
+                                  {transaction.category}
+                                </span>
+                              )}
+                            </div>
+                            <p className="font-medium text-base">{transaction.description}</p>
+                            {transaction.notes && (
+                              <p className="text-sm text-muted-foreground mt-1">{transaction.notes}</p>
+                            )}
+                          </div>
+                          <div className="text-right ml-4">
+                            <p className={`text-xl font-bold ${amountColor}`}>
+                              {amountSign}₹{Math.abs(transaction.amount).toLocaleString('en-IN')}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Balance Information */}
+                        <div className="flex items-center justify-between mt-3 pt-3 border-t text-xs">
+                          <div className="flex items-center gap-4">
+                            <div>
+                              <span className="text-muted-foreground">Before: </span>
+                              <span className="font-semibold">₹{transaction.beforeBalance.toLocaleString('en-IN')}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">After: </span>
+                              <span className="font-semibold">₹{transaction.afterBalance.toLocaleString('en-IN')}</span>
+                            </div>
+                          </div>
+                          <div className="text-muted-foreground">
+                            {format(new Date(transaction.createdAt), 'MMM dd, yyyy hh:mm a')}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-8">No transactions recorded yet</p>
               )}
             </CardContent>
           </Card>
