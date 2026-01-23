@@ -127,28 +127,30 @@ export default function TenantsPage() {
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex-1">
-          <SearchFilter
-            value={search}
-            onChange={setSearch}
-            placeholder="Search by name, phone, or room..."
-          />
+      <div className="sticky top-14 z-40 bg-background pb-3 -mx-4 px-4 md:static md:pb-0 md:mx-0 md:px-0">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex-1">
+            <SearchFilter
+              value={search}
+              onChange={setSearch}
+              placeholder="Search by name, phone, or room..."
+            />
+          </div>
+          <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+            <SelectTrigger className="w-full sm:w-[180px]">
+              <ArrowUpDown className="h-4 w-4 mr-2" />
+              <SelectValue placeholder="Sort by" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="name-asc">Name (A-Z)</SelectItem>
+              <SelectItem value="name-desc">Name (Z-A)</SelectItem>
+              <SelectItem value="balance-desc">Balance (High-Low)</SelectItem>
+              <SelectItem value="balance-asc">Balance (Low-High)</SelectItem>
+              <SelectItem value="rooms-desc">Rooms (Most)</SelectItem>
+              <SelectItem value="rooms-asc">Rooms (Least)</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-          <SelectTrigger className="w-full sm:w-[180px]">
-            <ArrowUpDown className="h-4 w-4 mr-2" />
-            <SelectValue placeholder="Sort by" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="name-asc">Name (A-Z)</SelectItem>
-            <SelectItem value="name-desc">Name (Z-A)</SelectItem>
-            <SelectItem value="balance-desc">Balance (High-Low)</SelectItem>
-            <SelectItem value="balance-asc">Balance (Low-High)</SelectItem>
-            <SelectItem value="rooms-desc">Rooms (Most)</SelectItem>
-            <SelectItem value="rooms-asc">Rooms (Least)</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
       {loading ? (

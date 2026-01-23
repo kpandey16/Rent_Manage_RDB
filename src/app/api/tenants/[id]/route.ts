@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { calculateTotalRentOwed, getRentForPeriod } from "@/lib/rent-calculator";
+import { db, getCurrentDateTime } from "@/lib/db";
+import { calculateTotalRentOwed, calculateUnpaidRent, getRentForPeriod } from "@/lib/rent-calculator";
 
 // GET /api/tenants/[id] - Get tenant details with financial information
 export async function GET(
@@ -152,9 +152,16 @@ export async function GET(
     // This will use the correct rent for each month based on effective dates
     const totalRentOwed = await calculateTotalRentOwed(id, db);
 
-    // Calculate total dues
-    // Total dues = Rent owed - Credits (payments made)
-    const totalDues = Math.max(0, totalRentOwed - ledgerTotal);
+    // Calculate unpaid rent (excluding paid periods)
+    const totalRentDue = await calculateUnpaidRent(id, db);
+
+    // Calculate financial metrics
+    // 1. totalRentDue = Unpaid rent only (periods not marked as paid)
+    // 2. netBalance = What tenant actually owes after applying credits
+    //    - Positive = tenant owes money
+    //    - Negative = tenant has excess credit
+    const netBalance = totalRentOwed - ledgerTotal; // After credits
+    const totalDues = Math.max(0, netBalance); // For backward compatibility
 
     const tenantDetails = {
       ...tenant.rows[0],
@@ -162,7 +169,9 @@ export async function GET(
       monthlyRent,
       securityDeposit: Number(depositBalance.rows[0].balance),
       creditBalance: actualCreditBalance,
-      totalDues,
+      totalRentDue, // NEW: Unpaid rent ignoring credits
+      netBalance, // NEW: Actual balance after credits (can be negative)
+      totalDues, // DEPRECATED: Keeping for compatibility
       lastPaidMonth,
       nextUnpaidPeriod: nextUnpaidPeriod ? formatPeriod(nextUnpaidPeriod) : null,
       nextUnpaidPeriodRaw: nextUnpaidPeriod,
@@ -173,6 +182,57 @@ export async function GET(
     console.error("Error fetching tenant details:", error);
     return NextResponse.json(
       { error: "Failed to fetch tenant details" },
+      { status: 500 }
+    );
+  }
+}
+
+// PUT /api/tenants/[id] - Update tenant details
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const body = await request.json();
+    const { name, phone, email } = body;
+
+    // Validation
+    if (!name || !phone) {
+      return NextResponse.json(
+        { error: "Name and phone are required" },
+        { status: 400 }
+      );
+    }
+
+    // Check if tenant exists
+    const existingTenant = await db.execute({
+      sql: "SELECT id FROM tenants WHERE id = ?",
+      args: [id],
+    });
+
+    if (existingTenant.rows.length === 0) {
+      return NextResponse.json(
+        { error: "Tenant not found" },
+        { status: 404 }
+      );
+    }
+
+    // Update tenant
+    await db.execute({
+      sql: `UPDATE tenants
+            SET name = ?, phone = ?, email = ?, updated_at = ?
+            WHERE id = ?`,
+      args: [name, phone, email || null, getCurrentDateTime(), id],
+    });
+
+    return NextResponse.json({
+      message: "Tenant updated successfully",
+    });
+  } catch (error) {
+    console.error("Error updating tenant:", error);
+    return NextResponse.json(
+      { error: "Failed to update tenant" },
       { status: 500 }
     );
   }

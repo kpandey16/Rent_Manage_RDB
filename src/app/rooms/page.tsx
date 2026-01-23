@@ -115,28 +115,30 @@ export default function RoomsPage() {
         <AddRoomForm onSubmit={handleAddRoom} />
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex-1">
-          <SearchFilter
-            value={search}
-            onChange={setSearch}
-            placeholder="Search by room, floor, or tenant..."
-          />
+      <div className="sticky top-14 z-40 bg-background pb-3 -mx-4 px-4 md:static md:pb-0 md:mx-0 md:px-0">
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex-1">
+            <SearchFilter
+              value={search}
+              onChange={setSearch}
+              placeholder="Search by room, floor, or tenant..."
+            />
+          </div>
+          <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+            <SelectTrigger className="w-full sm:w-[180px]">
+              <ArrowUpDown className="h-4 w-4 mr-2" />
+              <SelectValue placeholder="Sort by" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="code-asc">Room (A-Z)</SelectItem>
+              <SelectItem value="code-desc">Room (Z-A)</SelectItem>
+              <SelectItem value="rent-desc">Rent (High-Low)</SelectItem>
+              <SelectItem value="rent-asc">Rent (Low-High)</SelectItem>
+              <SelectItem value="status-occupied">Occupied First</SelectItem>
+              <SelectItem value="status-vacant">Vacant First</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-          <SelectTrigger className="w-full sm:w-[180px]">
-            <ArrowUpDown className="h-4 w-4 mr-2" />
-            <SelectValue placeholder="Sort by" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="code-asc">Room (A-Z)</SelectItem>
-            <SelectItem value="code-desc">Room (Z-A)</SelectItem>
-            <SelectItem value="rent-desc">Rent (High-Low)</SelectItem>
-            <SelectItem value="rent-asc">Rent (Low-High)</SelectItem>
-            <SelectItem value="status-occupied">Occupied First</SelectItem>
-            <SelectItem value="status-vacant">Vacant First</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
       {loading ? (

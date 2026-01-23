@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,7 +10,6 @@ import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
 export default function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -46,8 +45,10 @@ export default function LoginForm() {
 
       // Redirect to the page they came from, or to home
       const from = searchParams.get("from") || "/";
-      router.push(from);
-      router.refresh();
+
+      // Use window.location.href for hard navigation to ensure cookie is sent
+      // This is more reliable than router methods for authentication flows
+      window.location.href = from;
     } catch (error) {
       console.error("Login error:", error);
       toast.error("An error occurred during login");

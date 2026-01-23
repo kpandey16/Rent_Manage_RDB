@@ -1,8 +1,8 @@
 import type { Metadata, Viewport } from "next";
-import "./globals.css";
 import { Header } from "@/components/layout/header";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { Toaster } from "@/components/ui/sonner";
+import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Rent Manage",
@@ -25,9 +25,9 @@ export const viewport: Viewport = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="en">
       <body className="antialiased font-sans">

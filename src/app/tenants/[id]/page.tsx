@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/table";
 import { ArrowLeft, Phone, Mail, Calendar, IndianRupee, DoorOpen, Plus, Loader2 } from "lucide-react";
 import { AllocateRoomForm } from "@/components/forms/allocate-room-form";
+import { EditTenantForm } from "@/components/forms/edit-tenant-form";
+import { SetOpeningBalanceDialog } from "@/components/tenant/set-opening-balance-dialog";
 import { toast } from "sonner";
 
 interface Room {
@@ -46,6 +48,7 @@ interface Transaction {
   documentId?: string | null;
   adjustments?: Adjustment[];
   totalAmount?: number;
+  collectedBy?: string | null;
 }
 
 interface Tenant {
@@ -60,7 +63,9 @@ interface Tenant {
   monthlyRent: number;
   securityDeposit: number;
   creditBalance: number;
-  totalDues: number;
+  totalRentDue: number; // Total unpaid rent
+  netBalance: number; // Balance after credits (can be negative)
+  totalDues: number; // DEPRECATED: Keeping for compatibility
   lastPaidMonth: string | null;
 }
 
@@ -69,41 +74,49 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasOpeningBalance, setHasOpeningBalance] = useState(false);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+
+      // Fetch tenant details
+      const tenantResponse = await fetch(`/api/tenants/${id}`);
+      if (!tenantResponse.ok) {
+        if (tenantResponse.status === 404) {
+          toast.error("Tenant not found");
+        } else {
+          throw new Error("Failed to fetch tenant details");
+        }
+        return;
+      }
+      const tenantData = await tenantResponse.json();
+      setTenant(tenantData.tenant);
+
+      // Fetch transactions
+      const transactionsResponse = await fetch(`/api/transactions?tenantId=${id}`);
+      if (transactionsResponse.ok) {
+        const transactionsData = await transactionsResponse.json();
+        const txns = transactionsData.transactions || [];
+        setTransactions(txns);
+
+        // Check if opening balance exists
+        const hasOpening = txns.some((t: Transaction) =>
+          t.type === 'adjustment' && t.description?.toLowerCase().includes('opening balance')
+        );
+        setHasOpeningBalance(hasOpening);
+      }
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      toast.error("Failed to load tenant details");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-
-        // Fetch tenant details
-        const tenantResponse = await fetch(`/api/tenants/${id}`);
-        if (!tenantResponse.ok) {
-          if (tenantResponse.status === 404) {
-            toast.error("Tenant not found");
-          } else {
-            throw new Error("Failed to fetch tenant details");
-          }
-          return;
-        }
-        const tenantData = await tenantResponse.json();
-        setTenant(tenantData.tenant);
-
-        // Fetch transactions
-        const transactionsResponse = await fetch(`/api/transactions?tenantId=${id}`);
-        if (transactionsResponse.ok) {
-          const transactionsData = await transactionsResponse.json();
-          setTransactions(transactionsData.transactions || []);
-        }
-      } catch (error) {
-        console.error("Error fetching data:", error);
-        toast.error("Failed to load tenant details");
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchData();
-  }, [id]);
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRoomAllocated = () => {
     // Refresh tenant data after room allocation
@@ -144,6 +157,13 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
           <h1 className="text-xl font-semibold">{tenant.name}</h1>
           <p className="text-sm text-muted-foreground">Tenant since {new Date(tenant.created_at).toLocaleDateString("en-IN", { month: "short", year: "numeric" })}</p>
         </div>
+        <EditTenantForm
+          tenantId={tenant.id}
+          currentName={tenant.name}
+          currentPhone={tenant.phone}
+          currentEmail={tenant.email}
+          onSuccess={fetchData}
+        />
         <Badge variant={tenant.is_active === 1 ? "default" : "secondary"}>
           {tenant.is_active === 1 ? "Active" : "Inactive"}
         </Badge>
@@ -179,15 +199,24 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
               <p className="text-lg font-semibold">{tenant.lastPaidMonth || "-"}</p>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Credit Balance</p>
+              <p className="text-sm text-muted-foreground">Total Rent Due</p>
+              <p className={`text-lg font-semibold ${tenant.totalRentDue > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                {tenant.totalRentDue > 0 ? `₹${tenant.totalRentDue.toLocaleString("en-IN")}` : "₹0"}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Credit/Advance</p>
               <p className={`text-lg font-semibold ${tenant.creditBalance > 0 ? 'text-green-600' : tenant.creditBalance < 0 ? 'text-red-600' : ''}`}>
                 {tenant.creditBalance > 0 ? '+' : tenant.creditBalance < 0 ? '-' : ''}₹{Math.abs(tenant.creditBalance).toLocaleString("en-IN")}
               </p>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Total Dues</p>
-              <p className={`text-lg font-semibold ${tenant.totalDues > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                {tenant.totalDues > 0 ? `₹${tenant.totalDues.toLocaleString("en-IN")}` : "₹0"}
+              <p className="text-sm text-muted-foreground">Net Balance</p>
+              <p className={`text-lg font-semibold ${tenant.netBalance > 0 ? 'text-red-600' : tenant.netBalance < 0 ? 'text-green-600' : ''}`}>
+                {tenant.netBalance > 0 ? `₹${tenant.netBalance.toLocaleString("en-IN")}` : tenant.netBalance < 0 ? `+₹${Math.abs(tenant.netBalance).toLocaleString("en-IN")}` : "₹0"}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {tenant.netBalance > 0 ? 'To pay' : tenant.netBalance < 0 ? 'Extra credit' : 'Settled'}
               </p>
             </div>
           </div>
@@ -238,10 +267,22 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
       {/* Payment History */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <IndianRupee className="h-4 w-4" />
-            Payment History
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <IndianRupee className="h-4 w-4" />
+              Payment History
+            </CardTitle>
+            {!hasOpeningBalance && tenant && (
+              <SetOpeningBalanceDialog
+                tenantId={tenant.id}
+                tenantName={tenant.name}
+                moveInDate={tenant.rooms[0]?.moveInDate}
+                onSuccess={() => {
+                  fetchData();
+                }}
+              />
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {transactions.length === 0 ? (
@@ -281,6 +322,7 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
                       <p className="text-sm text-muted-foreground">
                         {new Date(transaction.transaction_date).toLocaleDateString("en-IN")}
                         {transaction.payment_method && ` • ${transaction.payment_method}`}
+                        {transaction.collectedBy && ` • Collected by: ${transaction.collectedBy}`}
                       </p>
                       {transaction.appliedTo && (
                         <p className="text-xs text-muted-foreground mt-1">
@@ -316,6 +358,7 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
                       <TableHead>Method</TableHead>
                       <TableHead>Applied To</TableHead>
                       <TableHead>Credit Balance</TableHead>
+                      <TableHead>Collected By</TableHead>
                       <TableHead>Notes</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -357,6 +400,9 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
                             ) : (
                               <span className="text-muted-foreground">-</span>
                             )}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {transaction.collectedBy || "-"}
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
                             {transaction.description || "-"}

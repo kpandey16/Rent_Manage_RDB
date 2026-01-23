@@ -1,10 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, generateId, getCurrentDateTime } from "@/lib/db";
 import { getTenantRentForPeriod } from "@/lib/rent-calculator";
+import { getCurrentUser } from "@/lib/auth";
 
 // POST /api/transactions - Record a transaction (payment, deposit, etc.)
 export async function POST(request: NextRequest) {
   try {
+    // Get current user for audit trail
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     const { tenantId, amount, type, method, date, notes, discount, maintenanceDeduction, otherAdjustment, autoApplyToRent } = body;
 
@@ -50,6 +60,7 @@ export async function POST(request: NextRequest) {
           transactionDate,
           notes,
           now,
+          currentUser.id,
           discount || 0,
           maintenanceDeduction || 0,
           otherAdjustment || 0,
@@ -57,10 +68,10 @@ export async function POST(request: NextRequest) {
         );
 
       case "credit":
-        return await handleCreditApplied(tenantId, amount, transactionDate, notes, now);
+        return await handleCreditApplied(tenantId, amount, transactionDate, notes, now, currentUser.id);
 
       case "adjustment":
-        return await handleAdjustment(tenantId, amount, transactionDate, notes, now);
+        return await handleAdjustment(tenantId, amount, transactionDate, notes, now, currentUser.id);
 
       default:
         return NextResponse.json(
@@ -85,6 +96,7 @@ async function handlePayment(
   transactionDate: string,
   notes: string | undefined,
   now: string,
+  userId: string,
   discount: number = 0,
   maintenanceDeduction: number = 0,
   otherAdjustment: number = 0,
@@ -115,9 +127,9 @@ async function handlePayment(
   if (discount > 0) {
     const discountId = generateId();
     await db.execute({
-      sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, subtype, amount, payment_method, description, document_id, created_at)
-            VALUES (?, ?, ?, 'adjustment', 'discount', ?, NULL, ?, ?, ?)`,
-      args: [discountId, tenantId, transactionDate, discount, notes || "Discount applied", documentId, now],
+      sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, subtype, amount, payment_method, description, document_id, created_by, created_at)
+            VALUES (?, ?, ?, 'adjustment', 'discount', ?, NULL, ?, ?, ?, ?)`,
+      args: [discountId, tenantId, transactionDate, discount, notes || "Discount applied", documentId, userId, now],
     });
     adjustmentIds.push(discountId);
   }
@@ -125,9 +137,9 @@ async function handlePayment(
   if (maintenanceDeduction > 0) {
     const maintenanceId = generateId();
     await db.execute({
-      sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, subtype, amount, payment_method, description, document_id, created_at)
-            VALUES (?, ?, ?, 'adjustment', 'maintenance', ?, NULL, ?, ?, ?)`,
-      args: [maintenanceId, tenantId, transactionDate, maintenanceDeduction, notes || "Maintenance expense deduction", documentId, now],
+      sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, subtype, amount, payment_method, description, document_id, created_by, created_at)
+            VALUES (?, ?, ?, 'adjustment', 'maintenance', ?, NULL, ?, ?, ?, ?)`,
+      args: [maintenanceId, tenantId, transactionDate, maintenanceDeduction, notes || "Maintenance expense deduction", documentId, userId, now],
     });
     adjustmentIds.push(maintenanceId);
   }
@@ -135,18 +147,18 @@ async function handlePayment(
   if (otherAdjustment > 0) {
     const otherId = generateId();
     await db.execute({
-      sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, subtype, amount, payment_method, description, document_id, created_at)
-            VALUES (?, ?, ?, 'adjustment', 'other', ?, NULL, ?, ?, ?)`,
-      args: [otherId, tenantId, transactionDate, otherAdjustment, notes || "Other adjustment", documentId, now],
+      sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, subtype, amount, payment_method, description, document_id, created_by, created_at)
+            VALUES (?, ?, ?, 'adjustment', 'other', ?, NULL, ?, ?, ?, ?)`,
+      args: [otherId, tenantId, transactionDate, otherAdjustment, notes || "Other adjustment", documentId, userId, now],
     });
     adjustmentIds.push(otherId);
   }
 
   // Create ledger entry for the payment (shares same document_id as adjustments)
   await db.execute({
-    sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, amount, payment_method, description, document_id, created_at)
-          VALUES (?, ?, ?, 'payment', ?, ?, ?, ?, ?)`,
-    args: [ledgerId, tenantId, transactionDate, amount, method, notes || "Payment received", documentId, now],
+    sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, amount, payment_method, description, document_id, created_by, created_at)
+          VALUES (?, ?, ?, 'payment', ?, ?, ?, ?, ?, ?)`,
+    args: [ledgerId, tenantId, transactionDate, amount, method, notes || "Payment received", documentId, userId, now],
   });
 
   // Calculate total available amount (existing credit + new payment + adjustments)
@@ -463,7 +475,8 @@ async function handleCreditApplied(
   amount: number,
   transactionDate: string,
   notes: string | undefined,
-  now: string
+  now: string,
+  userId: string
 ) {
   // FIRST: Check existing credit balance BEFORE doing anything
   const existingCreditResult = await db.execute({
@@ -504,9 +517,9 @@ async function handleCreditApplied(
   // Create a ₹0 ledger entry as a marker for credit application
   // This doesn't add or remove credit, just marks when credit was manually applied to rent
   await db.execute({
-    sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, amount, description, created_at)
-          VALUES (?, ?, ?, 'credit', 0, ?, ?)`,
-    args: [ledgerId, tenantId, transactionDate, notes || "Credit applied to rent", now],
+    sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, amount, description, created_by, created_at)
+          VALUES (?, ?, ?, 'credit', 0, ?, ?, ?)`,
+    args: [ledgerId, tenantId, transactionDate, notes || "Credit applied to rent", userId, now],
   });
 
   let remainingAmount = amountToApply;
@@ -628,14 +641,15 @@ async function handleAdjustment(
   transactionDate: string,
   notes: string | undefined,
   now: string,
+  userId: string,
   subtype: string = 'other'
 ) {
   const ledgerId = generateId();
 
   await db.execute({
-    sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, subtype, amount, description, created_at)
-          VALUES (?, ?, ?, 'adjustment', ?, ?, ?, ?)`,
-    args: [ledgerId, tenantId, transactionDate, subtype, amount, notes || "Adjustment applied", now],
+    sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, subtype, amount, description, created_by, created_at)
+          VALUES (?, ?, ?, 'adjustment', ?, ?, ?, ?, ?)`,
+    args: [ledgerId, tenantId, transactionDate, subtype, amount, notes || "Adjustment applied", userId, now],
   });
 
   const categoryLabel = subtype.charAt(0).toUpperCase() + subtype.slice(1);
@@ -667,9 +681,13 @@ export async function GET(request: NextRequest) {
         tl.payment_method,
         tl.description,
         tl.document_id,
+        tl.created_by,
+        u.name as collected_by_name,
+        u.username as collected_by_username,
         tl.created_at
       FROM tenant_ledger tl
       JOIN tenants t ON tl.tenant_id = t.id
+      LEFT JOIN users u ON tl.created_by = u.id
     `;
 
     const args = [];
@@ -784,6 +802,7 @@ export async function GET(request: NextRequest) {
             bundledTransactions: bundleTransactions.length > 1 ? bundleTransactions : undefined,
             adjustments: adjustments.length > 0 ? adjustments : undefined,
             totalAmount: bundleTransactions.length > 1 ? totalAmount : Number(transaction.amount),
+            collectedBy: transaction.collected_by_name || transaction.collected_by_username || null,
           };
         }
         // Handle security deposit and other non-credit transactions
@@ -795,6 +814,7 @@ export async function GET(request: NextRequest) {
           documentId: transaction.document_id,
           bundledTransactions: bundleTransactions.length > 1 ? bundleTransactions : undefined,
           totalAmount: Number(transaction.amount),
+          collectedBy: transaction.collected_by_name || transaction.collected_by_username || null,
         };
       })
     );

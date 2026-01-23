@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Menu, Bell, Home, Users, DoorOpen, CreditCard, BarChart3, Wallet, LogOut, User } from "lucide-react";
+import { Menu, Bell, Home, Users, DoorOpen, CreditCard, BarChart3, Wallet, LogOut, User, Building2, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -23,19 +23,21 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useState } from "react";
 
-const navItems = [
-  { href: "/", icon: Home, label: "Dashboard" },
-  { href: "/tenants", icon: Users, label: "Tenants" },
-  { href: "/rooms", icon: DoorOpen, label: "Rooms" },
-  { href: "/payments", icon: CreditCard, label: "Payments" },
-  { href: "/cash-management", icon: Wallet, label: "Cash" },
-  { href: "/reports", icon: BarChart3, label: "Reports" },
-];
-
 export function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
+
+  // Navigation items
+  const navItems = [
+    { href: "/", icon: Home, label: "Dashboard" },
+    { href: "/tenants", icon: Users, label: "Tenants" },
+    { href: "/rooms", icon: DoorOpen, label: "Rooms" },
+    { href: "/payments", icon: CreditCard, label: "Payments" },
+    { href: "/cash-management", icon: Wallet, label: "Cash Management" },
+    { href: "/lawn-events", icon: Building2, label: "Lawn Events" },
+    { href: "/reports", icon: BarChart3, label: "Reports" },
+  ];
 
   const handleLogout = async () => {
     try {
@@ -46,10 +48,10 @@ export function Header() {
 
       if (response.ok) {
         toast.success("Logged out successfully");
-        router.push("/login");
-        router.refresh();
+        // Use window.location.href for hard navigation to ensure cookie is cleared
+        window.location.href = "/login";
       } else {
-        toast.error("Failed to logout");
+        toast.error("An error occurred");
       }
     } catch (error) {
       console.error("Logout error:", error);
@@ -143,6 +145,12 @@ export function Header() {
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>My Account</DropdownMenuLabel>
               <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href="/settings" className="cursor-pointer">
+                  <Settings className="mr-2 h-4 w-4" />
+                  Settings
+                </Link>
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={handleLogout} disabled={loggingOut}>
                 <LogOut className="mr-2 h-4 w-4" />
                 {loggingOut ? "Logging out..." : "Logout"}
