@@ -19,6 +19,7 @@ export default function Home() {
   const [search, setSearch] = useState("");
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [tenantsOverview, setTenantsOverview] = useState<TenantOverview[]>([]);
+  const [tenantsOptimized, setTenantsOptimized] = useState<TenantOverview[]>([]);
   const [loading, setLoading] = useState(true);
   const [showOptionalColumns, setShowOptionalColumns] = useState({
     securityDeposit: false,
@@ -26,6 +27,11 @@ export default function Home() {
   });
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [debugMode, setDebugMode] = useState(false);
+  const [performanceData, setPerformanceData] = useState<{
+    originalTime: number;
+    optimizedTime: number;
+  } | null>(null);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -33,10 +39,12 @@ export default function Home() {
         setLoading(true);
 
         // Fetch rooms and tenants data
+        const originalStartTime = Date.now();
         const [roomsRes, tenantsRes] = await Promise.all([
           fetch("/api/rooms"),
           fetch("/api/tenants"),
         ]);
+        const originalEndTime = Date.now();
 
         if (!roomsRes.ok || !tenantsRes.ok) {
           throw new Error("Failed to fetch dashboard data");
@@ -47,6 +55,25 @@ export default function Home() {
 
         const rooms = roomsData.rooms || [];
         const tenants = tenantsData.tenants || [];
+
+        // Fetch optimized endpoint if debug mode is enabled
+        let tenantsOptimizedData = null;
+        let optimizedTime = 0;
+        if (debugMode) {
+          const optimizedStartTime = Date.now();
+          const tenantsOptimizedRes = await fetch("/api/tenants/optimized");
+          const optimizedEndTime = Date.now();
+          optimizedTime = optimizedEndTime - optimizedStartTime;
+
+          if (tenantsOptimizedRes.ok) {
+            tenantsOptimizedData = await tenantsOptimizedRes.json();
+          }
+        }
+
+        setPerformanceData({
+          originalTime: originalEndTime - originalStartTime,
+          optimizedTime: optimizedTime,
+        });
 
         // Calculate stats
         const occupiedRooms = rooms.filter((r: any) => r.status === "occupied").length;
@@ -105,6 +132,31 @@ export default function Home() {
           });
 
         setTenantsOverview(tenantsOverviewData);
+
+        // Set optimized tenants data if available
+        if (tenantsOptimizedData && tenantsOptimizedData.tenants) {
+          const tenantsOptimizedOverview: TenantOverview[] = tenantsOptimizedData.tenants
+            .filter((t: any) => t.is_active)
+            .map((tenant: any) => {
+              const roomCodes = tenant.room_codes ? tenant.room_codes.split(',').filter(Boolean) : [];
+              const monthlyRent = Number(tenant.monthly_rent || 0);
+              const totalDues = Number(tenant.total_dues || 0);
+              const pendingMonths = monthlyRent > 0 ? Math.floor(totalDues / monthlyRent) : 0;
+
+              return {
+                id: tenant.id,
+                name: tenant.name,
+                rooms: roomCodes,
+                monthlyRent,
+                lastPaidMonth: tenant.last_paid_month || "Never",
+                pendingMonths,
+                totalDues,
+                securityDeposit: Number(tenant.security_deposit_balance || 0),
+                creditBalance: Number(tenant.credit_balance || 0),
+              };
+            });
+          setTenantsOptimized(tenantsOptimizedOverview);
+        }
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
       } finally {
@@ -113,7 +165,7 @@ export default function Home() {
     };
 
     fetchDashboardData();
-  }, []);
+  }, [debugMode]);
 
   const filteredAndSortedTenants = useMemo(() => {
     let result = tenantsOverview;
@@ -177,6 +229,27 @@ export default function Home() {
 
   return (
     <div className="p-4 space-y-4">
+      {/* Debug Mode Toggle */}
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={debugMode}
+              onChange={(e) => setDebugMode(e.target.checked)}
+              className="w-4 h-4"
+            />
+            <span className="text-sm font-medium">Debug Mode (Compare Calculations)</span>
+          </label>
+          {debugMode && performanceData && (
+            <div className="text-xs bg-blue-50 text-blue-700 px-3 py-1 rounded-full">
+              Original: {performanceData.originalTime}ms | Optimized: {performanceData.optimizedTime}ms |
+              Speedup: {performanceData.originalTime > 0 ? (performanceData.originalTime / Math.max(performanceData.optimizedTime, 1)).toFixed(1) : 0}x
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Stats Grid */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Card>
@@ -256,6 +329,8 @@ export default function Home() {
             sortField={sortField}
             sortDirection={sortDirection}
             onSort={handleSort}
+            debugMode={debugMode}
+            tenantsOptimized={tenantsOptimized}
           />
         </CardContent>
       </Card>
