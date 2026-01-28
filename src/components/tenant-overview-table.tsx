@@ -51,6 +51,8 @@ interface TenantOverviewTableProps {
   sortField: SortField;
   sortDirection: SortDirection;
   onSort: (field: SortField) => void;
+  debugMode?: boolean;
+  tenantsOptimized?: TenantOverview[];
 }
 
 function SortableHeader({
@@ -97,7 +99,28 @@ export function TenantOverviewTable({
   sortField,
   sortDirection,
   onSort,
+  debugMode = false,
+  tenantsOptimized = [],
 }: TenantOverviewTableProps) {
+  // Helper to find optimized data for a tenant
+  const getOptimizedData = (tenantId: string) => {
+    return tenantsOptimized.find(t => t.id === tenantId);
+  };
+
+  // Helper to check if values match
+  const valuesMatch = (val1: number, val2: number) => {
+    return Math.abs(val1 - val2) < 0.01; // Allow small floating point differences
+  };
+
+  // Helper to render comparison badge
+  const ComparisonBadge = ({ original, optimized }: { original: number; optimized: number }) => {
+    const match = valuesMatch(original, optimized);
+    return (
+      <span className={`ml-1 text-xs px-1.5 py-0.5 rounded ${match ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+        {match ? '✓' : '✗'}
+      </span>
+    );
+  };
   const sortOptions = [
     { value: "name-asc", label: "Name (A-Z)" },
     { value: "name-desc", label: "Name (Z-A)" },
@@ -261,8 +284,13 @@ export function TenantOverviewTable({
                 onSort={onSort}
                 className="text-right"
               >
-                Total Dues
+                Total Dues {debugMode && <span className="text-xs font-normal">(Old)</span>}
               </SortableHeader>
+              {debugMode && (
+                <TableHead className="text-right">
+                  Total Dues <span className="text-xs font-normal">(New)</span>
+                </TableHead>
+              )}
               {showOptionalColumns.securityDeposit && (
                 <TableHead className="text-right">Deposit</TableHead>
               )}
@@ -272,50 +300,71 @@ export function TenantOverviewTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {tenants.map((tenant) => (
-              <TableRow key={tenant.id} className="cursor-pointer hover:bg-muted/50">
-                <TableCell>
-                  <Link href={`/tenants/${tenant.id}`} className="font-medium hover:underline">
-                    {tenant.name}
-                  </Link>
-                </TableCell>
-                <TableCell>{tenant.rooms.join(", ")}</TableCell>
-                <TableCell className="text-right">₹{tenant.monthlyRent.toLocaleString("en-IN")}</TableCell>
-                <TableCell>{tenant.lastPaidMonth || "-"}</TableCell>
-                <TableCell className="text-center">
-                  {tenant.pendingMonths > 0 ? (
-                    <Badge variant={tenant.pendingMonths >= 3 ? "destructive" : "secondary"}>
-                      {tenant.pendingMonths}
-                    </Badge>
-                  ) : (
-                    <span className="text-muted-foreground">0</span>
-                  )}
-                </TableCell>
-                <TableCell className="text-right">
-                  {tenant.totalDues > 0 ? (
-                    <span className="text-destructive font-medium">
-                      ₹{tenant.totalDues.toLocaleString("en-IN")}
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground">-</span>
-                  )}
-                </TableCell>
-                {showOptionalColumns.securityDeposit && (
-                  <TableCell className="text-right">
-                    ₹{(tenant.securityDeposit || 0).toLocaleString("en-IN")}
+            {tenants.map((tenant) => {
+              const optimizedData = debugMode ? getOptimizedData(tenant.id) : null;
+              return (
+                <TableRow key={tenant.id} className="cursor-pointer hover:bg-muted/50">
+                  <TableCell>
+                    <Link href={`/tenants/${tenant.id}`} className="font-medium hover:underline">
+                      {tenant.name}
+                    </Link>
                   </TableCell>
-                )}
-                {showOptionalColumns.creditBalance && (
+                  <TableCell>{tenant.rooms.join(", ")}</TableCell>
+                  <TableCell className="text-right">₹{tenant.monthlyRent.toLocaleString("en-IN")}</TableCell>
+                  <TableCell>{tenant.lastPaidMonth || "-"}</TableCell>
+                  <TableCell className="text-center">
+                    {tenant.pendingMonths > 0 ? (
+                      <Badge variant={tenant.pendingMonths >= 3 ? "destructive" : "secondary"}>
+                        {tenant.pendingMonths}
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground">0</span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-right">
-                    {(tenant.creditBalance || 0) > 0 ? (
-                      <span className="text-green-600">+₹{tenant.creditBalance?.toLocaleString("en-IN")}</span>
+                    {tenant.totalDues > 0 ? (
+                      <span className="text-destructive font-medium">
+                        ₹{tenant.totalDues.toLocaleString("en-IN")}
+                        {debugMode && optimizedData && (
+                          <ComparisonBadge original={tenant.totalDues} optimized={optimizedData.totalDues} />
+                        )}
+                      </span>
                     ) : (
                       <span className="text-muted-foreground">-</span>
                     )}
                   </TableCell>
-                )}
-              </TableRow>
-            ))}
+                  {debugMode && (
+                    <TableCell className="text-right">
+                      {optimizedData ? (
+                        optimizedData.totalDues > 0 ? (
+                          <span className="text-blue-600 font-medium">
+                            ₹{optimizedData.totalDues.toLocaleString("en-IN")}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )
+                      ) : (
+                        <span className="text-muted-foreground">Loading...</span>
+                      )}
+                    </TableCell>
+                  )}
+                  {showOptionalColumns.securityDeposit && (
+                    <TableCell className="text-right">
+                      ₹{(tenant.securityDeposit || 0).toLocaleString("en-IN")}
+                    </TableCell>
+                  )}
+                  {showOptionalColumns.creditBalance && (
+                    <TableCell className="text-right">
+                      {(tenant.creditBalance || 0) > 0 ? (
+                        <span className="text-green-600">+₹{tenant.creditBalance?.toLocaleString("en-IN")}</span>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
+                  )}
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </div>
