@@ -3,10 +3,12 @@
   "short_name": "RentManage",
   "description": "Property rent management application",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#000000",
   "orientation": "portrait-primary",
+  "categories": ["business", "finance", "productivity"],
   "icons": [
     {
       "src": "/icon-72.png",
