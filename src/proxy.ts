@@ -3,7 +3,17 @@ import type { NextRequest } from "next/server";
 import { verifySession } from "@/lib/auth";
 
 // Paths that don't require authentication
-const publicPaths = ["/login", "/api/auth/login"];
+const publicPaths = [
+  "/login",
+  "/api/auth/login",
+  "/manifest.json",
+  "/.well-known/assetlinks.json",
+  "/sw.js",
+  "/workbox-",
+  "/swe-worker-",
+  "/icon-",
+  "/apple-touch-icon.png",
+];
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
