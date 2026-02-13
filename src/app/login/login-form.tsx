@@ -104,12 +104,6 @@ export default function LoginForm() {
               )}
             </Button>
           </form>
-          <div className="mt-6 text-center text-sm text-muted-foreground">
-            <p className="mb-1">Default credentials for testing:</p>
-            <p className="font-mono text-xs">
-              admin / admin123 or operator / operator123
-            </p>
-          </div>
         </CardContent>
       </Card>
     </div>
