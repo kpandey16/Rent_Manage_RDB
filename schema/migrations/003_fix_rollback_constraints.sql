@@ -1,12 +1,12 @@
--- Migration: Add rollback_history table
--- Version: 1.0.0
--- Purpose: Track all rolled-back payment transactions with complete audit trail
+-- Migration: Fix rollback_history constraints
+-- Version: 1.0.1
+-- Purpose: Remove CHECK constraints to support negative adjustments and credit-only transactions
+-- Date: 2026-03-08
 
 -- ============================================================================
--- TABLE: rollback_history
--- Tracks all payment rollbacks with complete record of deleted data
+-- Step 1: Create new table with corrected schema
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS rollback_history (
+CREATE TABLE IF NOT EXISTS rollback_history_new (
     id TEXT PRIMARY KEY,
 
     -- Basic rollback info
@@ -46,7 +46,21 @@ CREATE TABLE IF NOT EXISTS rollback_history (
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- Indexes for efficient querying
+-- ============================================================================
+-- Step 2: Copy existing data
+-- ============================================================================
+INSERT INTO rollback_history_new
+SELECT * FROM rollback_history;
+
+-- ============================================================================
+-- Step 3: Drop old table and rename new table
+-- ============================================================================
+DROP TABLE rollback_history;
+ALTER TABLE rollback_history_new RENAME TO rollback_history;
+
+-- ============================================================================
+-- Step 4: Recreate indexes
+-- ============================================================================
 CREATE INDEX idx_rollback_history_tenant ON rollback_history(tenant_id);
 CREATE INDEX idx_rollback_history_performed_at ON rollback_history(performed_at);
 CREATE INDEX idx_rollback_history_performed_by ON rollback_history(performed_by);
@@ -55,8 +69,7 @@ CREATE INDEX idx_rollback_history_payment_date ON rollback_history(payment_date)
 
 -- ============================================================================
 -- NOTES:
--- - All deleted records are stored as complete JSON for full audit trail
--- - This table is append-only (no updates except for restoration)
--- - Can reconstruct exact state before rollback from JSON fields
--- - Operator balance tracking helps verify cash flow integrity
+-- - Removed CHECK constraint on payment_amount (now supports negative values)
+-- - Removed CHECK constraint on total_rent_rolled_back (now supports 0)
+-- - All existing data is preserved
 -- ============================================================================

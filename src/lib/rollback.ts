@@ -375,7 +375,7 @@ export async function executePaymentRollback(
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         rollbackId,
-        'payment',
+        p.type || 'payment', // Use actual transaction type (payment, adjustment, etc.)
         details.tenantId,
         userId,
         now,
