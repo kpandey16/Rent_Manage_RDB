@@ -399,16 +399,26 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
                 <Input
                   id="amount"
                   type="number"
-                  min="0"
+                  min={formData.type === "adjustment" ? undefined : "0"}
                   step="1"
                   value={formData.type === "credit" ? "" : (formData.amount || "")}
                   onChange={(e) => setFormData((prev) => ({ ...prev, amount: Number(e.target.value) }))}
                   className="pl-7"
-                  placeholder={formData.type === "credit" ? "Uses existing credit" : "0"}
+                  placeholder={formData.type === "credit" ? "Uses existing credit" : formData.type === "adjustment" ? "Positive to add, negative to reduce" : "0"}
                   disabled={submitting || formData.type === "credit"}
                   required={formData.type !== "credit"}
                 />
               </div>
+              {formData.type === "adjustment" && (
+                <Alert>
+                  <AlertDescription>
+                    <Info className="h-4 w-4 inline mr-2" />
+                    Enter positive amount to add credit, negative amount to reduce credit.
+                    <br />
+                    Example: <strong>-800</strong> will reduce credit by ₹800
+                  </AlertDescription>
+                </Alert>
+              )}
               {formData.type === "credit" && selectedTenant && (
                 <Alert>
                   <AlertDescription>

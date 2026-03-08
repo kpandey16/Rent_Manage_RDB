@@ -26,10 +26,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Amount validation - allow 0 for credit type, require > 0 for others
-    if (type !== "credit" && amount <= 0) {
+    // Amount validation
+    // - credit type: allow 0 (uses existing credit)
+    // - adjustment type: allow negative (for credit balance corrections)
+    // - payment type: require > 0
+    if (type === "payment" && amount <= 0) {
       return NextResponse.json(
-        { error: "Amount must be greater than zero" },
+        { error: "Payment amount must be greater than zero" },
         { status: 400 }
       );
     }
