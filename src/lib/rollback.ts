@@ -186,33 +186,38 @@ export async function validatePaymentRollback(
       0
     );
 
-    // Step 3: Must be payment type
-    if (p.type !== 'payment') {
-      errors.push(`Cannot rollback ${p.type} type entries. Only cash/UPI payments can be rolled back.`);
+    // Step 3: Must be payment or adjustment type
+    if (p.type !== 'payment' && p.type !== 'adjustment') {
+      errors.push(`Cannot rollback ${p.type} type entries. Only payments and adjustments can be rolled back.`);
     }
 
-    // Step 4: Must be cash or UPI method
-    if (p.payment_method !== 'cash' && p.payment_method !== 'upi') {
+    // Step 4: For payments, must be cash or UPI method
+    if (p.type === 'payment' && p.payment_method !== 'cash' && p.payment_method !== 'upi') {
       errors.push(`Payment method '${p.payment_method || 'unknown'}' cannot be rolled back. Only cash/UPI payments are eligible.`);
     }
 
     // Step 5: Check if this is a credit-only payment (no rent applied)
     const isCreditOnly = periods.length === 0;
 
-    // For credit-only payments, allow rollback if recent (within 24 hours)
-    // For rent-applied payments, must be most recent
+    // For credit-only entries (payments/adjustments), allow rollback if recent (within 24 hours)
+    // For rent-applied entries, must be most recent
     if (isCreditOnly) {
       const isRecent = await isRecentPayment(ledgerId);
       if (!isRecent) {
-        errors.push("Credit-only payments can be deleted within 24 hours of creation");
+        const entryType = p.type === 'adjustment' ? 'Adjustments' : 'Credit-only payments';
+        errors.push(`${entryType} can be deleted within 24 hours of creation`);
       } else {
-        warnings.push("This payment only added to credit balance (no rent periods paid). Safe to rollback.");
+        const entryType = p.type === 'adjustment'
+          ? `This ${p.subtype || 'adjustment'} only added to credit balance`
+          : "This payment only added to credit balance";
+        warnings.push(`${entryType} (no rent periods paid). Safe to rollback.`);
       }
     } else {
-      // Payment was applied to rent - must be most recent
+      // Entry was applied to rent - must be most recent
       const isMostRecent = await isMostRecentPayment(p.tenant_id, ledgerId);
       if (!isMostRecent) {
-        errors.push("Only the most recent payment can be rolled back");
+        const entryType = p.type === 'adjustment' ? 'adjustment' : 'payment';
+        errors.push(`Only the most recent ${entryType} can be rolled back`);
       }
     }
 
@@ -431,12 +436,22 @@ export async function executePaymentRollback(
       args: [generateId(), userId, ledgerId, JSON.stringify(p), now]
     });
 
+    // Build success message based on transaction type
+    const transactionType = p.type === 'adjustment' ? (p.subtype || 'adjustment') : 'payment';
+    let message = `Successfully rolled back ${transactionType} of ₹${details.paymentAmount.toLocaleString('en-IN')}`;
+
+    if (details.periods.length > 0) {
+      message += ` for ${details.periods.join(', ')}`;
+    } else {
+      message += ` from credit balance`;
+    }
+
     return {
       success: true,
       rollbackId,
       periodsAffected: details.periods,
       amountRefunded: details.paymentAmount,
-      message: `Successfully rolled back payment of ₹${details.paymentAmount.toLocaleString('en-IN')} for ${details.periods.join(', ')}`
+      message
     };
 
   } catch (error) {

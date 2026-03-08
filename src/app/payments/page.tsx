@@ -80,12 +80,18 @@ export default function PaymentsPage() {
     setSelectedLedgerId(null);
   };
 
-  // Check if transaction can show rollback button (payment type with cash/upi)
+  // Check if transaction can show rollback button
   const canShowRollback = (transaction: Transaction) => {
-    return (
-      transaction.type === "payment" &&
-      (transaction.payment_method === "cash" || transaction.payment_method === "upi")
-    );
+    // Allow rollback for:
+    // 1. Cash/UPI payments
+    // 2. Adjustments (discount, maintenance, other)
+    if (transaction.type === "payment") {
+      return transaction.payment_method === "cash" || transaction.payment_method === "upi";
+    }
+    if (transaction.type === "adjustment") {
+      return true; // All adjustments can be rolled back within 24 hours if not applied to rent
+    }
+    return false;
   };
 
   return (
