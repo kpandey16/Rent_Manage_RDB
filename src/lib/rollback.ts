@@ -55,6 +55,21 @@ async function isMostRecentPayment(tenantId: string, ledgerId: string): Promise<
 }
 
 /**
+ * Check if payment is recent (within last 24 hours)
+ */
+async function isRecentPayment(ledgerId: string): Promise<boolean> {
+  const result = await db.execute({
+    sql: `SELECT
+            CASE WHEN created_at >= datetime('now', '-24 hours') THEN 1 ELSE 0 END as is_recent
+          FROM tenant_ledger
+          WHERE id = ?`,
+    args: [ledgerId]
+  });
+
+  return result.rows[0]?.is_recent === 1;
+}
+
+/**
  * Check if credit generated from this payment was used in subsequent transactions
  */
 async function checkCreditUsageAfterPayment(
@@ -181,10 +196,24 @@ export async function validatePaymentRollback(
       errors.push(`Payment method '${p.payment_method || 'unknown'}' cannot be rolled back. Only cash/UPI payments are eligible.`);
     }
 
-    // Step 5: Must be tenant's most recent payment
-    const isMostRecent = await isMostRecentPayment(p.tenant_id, ledgerId);
-    if (!isMostRecent) {
-      errors.push("Only the most recent payment can be rolled back");
+    // Step 5: Check if this is a credit-only payment (no rent applied)
+    const isCreditOnly = periods.length === 0;
+
+    // For credit-only payments, allow rollback if recent (within 24 hours)
+    // For rent-applied payments, must be most recent
+    if (isCreditOnly) {
+      const isRecent = await isRecentPayment(ledgerId);
+      if (!isRecent) {
+        errors.push("Credit-only payments can be deleted within 24 hours of creation");
+      } else {
+        warnings.push("This payment only added to credit balance (no rent periods paid). Safe to rollback.");
+      }
+    } else {
+      // Payment was applied to rent - must be most recent
+      const isMostRecent = await isMostRecentPayment(p.tenant_id, ledgerId);
+      if (!isMostRecent) {
+        errors.push("Only the most recent payment can be rolled back");
+      }
     }
 
     // Step 6: Check if credit generated from this payment was used
