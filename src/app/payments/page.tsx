@@ -224,7 +224,7 @@ export default function PaymentsPage() {
                                 </div>
                               )}
 
-                              {hasCredit && (
+                              {hasCredit && transaction.creditRemaining && (
                                 <div className="pl-3 flex justify-between pt-1 border-t">
                                   <span className="text-muted-foreground">→ Remaining credit:</span>
                                   <span className="font-medium text-green-600">
