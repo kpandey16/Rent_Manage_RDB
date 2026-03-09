@@ -106,6 +106,7 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
   const [submitting, setSubmitting] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [showAdjustments, setShowAdjustments] = useState(false);
+  const [showTenantDetails, setShowTenantDetails] = useState(false);
   const [formData, setFormData] = useState<PaymentFormData>({
     tenantId: "",
     amount: 0,
@@ -149,6 +150,14 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
       setSelectedTenant(null);
     }
   }, [formData.tenantId]);
+
+  // Auto-fill amount with expected rent when tenant is selected
+  useEffect(() => {
+    if (selectedTenant && formData.type === "payment" && formData.amount === 0) {
+      const expectedTotal = selectedTenant.rooms?.reduce((sum, room) => sum + room.expectedRent, 0) || selectedTenant.monthlyRent;
+      setFormData((prev) => ({ ...prev, amount: expectedTotal }));
+    }
+  }, [selectedTenant, formData.type]);
 
   const fetchTenants = async () => {
     try {
@@ -296,80 +305,115 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
               </Popover>
             </div>
 
-            {/* Tenant Information Display */}
+            {/* Tenant Information Display - Compact */}
             {selectedTenant && (
-              <div className="space-y-3">
-                <div className="rounded-lg border bg-muted/50 p-4">
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <p className="text-muted-foreground">Monthly Rent</p>
-                      <p className="font-semibold">₹{selectedTenant.monthlyRent.toLocaleString("en-IN")}</p>
+              <div className="space-y-2">
+                {/* Compact Summary */}
+                <div className="rounded-lg border bg-muted/50 p-3">
+                  <div className="flex items-center justify-between text-sm flex-wrap gap-2">
+                    <div className="flex items-center gap-4 flex-wrap">
+                      <span className="text-muted-foreground">
+                        Last Paid: <span className="font-medium text-foreground">{selectedTenant.lastPaidMonth || "N/A"}</span>
+                      </span>
+                      {selectedTenant.creditBalance > 0 && (
+                        <span className="text-muted-foreground">
+                          Credit: <span className="font-medium text-green-600">₹{selectedTenant.creditBalance.toLocaleString("en-IN")}</span>
+                        </span>
+                      )}
+                      {selectedTenant.totalDues > 0 && (
+                        <span className="text-muted-foreground">
+                          Dues: <span className="font-medium text-red-600">₹{selectedTenant.totalDues.toLocaleString("en-IN")}</span>
+                        </span>
+                      )}
                     </div>
-                    <div>
-                      <p className="text-muted-foreground">Last Paid Month</p>
-                      <p className="font-semibold">{selectedTenant.lastPaidMonth || "N/A"}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Credit Balance</p>
-                      <p className={`font-semibold ${selectedTenant.creditBalance > 0 ? 'text-green-600' : ''}`}>
-                        ₹{selectedTenant.creditBalance.toLocaleString("en-IN")}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Total Dues</p>
-                      <p className={`font-semibold ${selectedTenant.totalDues > 0 ? 'text-red-600' : ''}`}>
-                        ₹{selectedTenant.totalDues.toLocaleString("en-IN")}
-                      </p>
-                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-auto p-0 text-xs"
+                      onClick={() => setShowTenantDetails(!showTenantDetails)}
+                    >
+                      {showTenantDetails ? "Hide Details" : "View Details"} {showTenantDetails ? "▲" : "▼"}
+                    </Button>
                   </div>
                 </div>
 
-                {/* Room Breakdown */}
-                {selectedTenant.rooms && selectedTenant.rooms.length > 0 && (
-                  <div className="rounded-lg border bg-muted/50 p-4">
-                    <div className="mb-3 flex items-center justify-between">
-                      <p className="text-sm font-semibold">
-                        Rooms & Expected Rent
-                        {selectedTenant.nextUnpaidPeriod && (
-                          <span className="ml-2 text-muted-foreground font-normal">
-                            (for {selectedTenant.nextUnpaidPeriod})
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                    <div className="space-y-2">
-                      {selectedTenant.rooms.map((room) => (
-                        <div
-                          key={room.id}
-                          className="flex items-center justify-between text-sm py-2 border-t first:border-t-0 first:pt-0"
-                        >
-                          <div>
-                            <p className="font-medium">{room.code}</p>
-                            <p className="text-xs text-muted-foreground">{room.name}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-semibold">
-                              ₹{room.expectedRent.toLocaleString("en-IN")}
-                            </p>
-                            {room.expectedRent !== room.currentRent && (
-                              <p className="text-xs text-muted-foreground">
-                                (Current: ₹{room.currentRent.toLocaleString("en-IN")})
-                              </p>
-                            )}
-                          </div>
+                {/* Expandable Details */}
+                {showTenantDetails && (
+                  <div className="space-y-2 animate-in slide-in-from-top-2">
+                    <div className="rounded-lg border bg-muted/50 p-3">
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <p className="text-muted-foreground">Monthly Rent</p>
+                          <p className="font-semibold">₹{selectedTenant.monthlyRent.toLocaleString("en-IN")}</p>
                         </div>
-                      ))}
-                      {selectedTenant.rooms.length > 1 && (
-                        <div className="flex items-center justify-between text-sm pt-2 border-t font-semibold">
-                          <p>Total Expected</p>
-                          <p>
-                            ₹{selectedTenant.rooms
-                              .reduce((sum, room) => sum + room.expectedRent, 0)
-                              .toLocaleString("en-IN")}
+                        <div>
+                          <p className="text-muted-foreground">Last Paid Month</p>
+                          <p className="font-semibold">{selectedTenant.lastPaidMonth || "N/A"}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Credit Balance</p>
+                          <p className={`font-semibold ${selectedTenant.creditBalance > 0 ? 'text-green-600' : ''}`}>
+                            ₹{selectedTenant.creditBalance.toLocaleString("en-IN")}
                           </p>
                         </div>
-                      )}
+                        <div>
+                          <p className="text-muted-foreground">Total Dues</p>
+                          <p className={`font-semibold ${selectedTenant.totalDues > 0 ? 'text-red-600' : ''}`}>
+                            ₹{selectedTenant.totalDues.toLocaleString("en-IN")}
+                          </p>
+                        </div>
+                      </div>
                     </div>
+
+                    {/* Room Breakdown */}
+                    {selectedTenant.rooms && selectedTenant.rooms.length > 0 && (
+                      <div className="rounded-lg border bg-muted/50 p-3">
+                        <div className="mb-2 flex items-center justify-between">
+                          <p className="text-sm font-semibold">
+                            Rooms & Expected Rent
+                            {selectedTenant.nextUnpaidPeriod && (
+                              <span className="ml-2 text-muted-foreground font-normal">
+                                (for {selectedTenant.nextUnpaidPeriod})
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                        <div className="space-y-2">
+                          {selectedTenant.rooms.map((room) => (
+                            <div
+                              key={room.id}
+                              className="flex items-center justify-between text-sm py-2 border-t first:border-t-0 first:pt-0"
+                            >
+                              <div>
+                                <p className="font-medium">{room.code}</p>
+                                <p className="text-xs text-muted-foreground">{room.name}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-semibold">
+                                  ₹{room.expectedRent.toLocaleString("en-IN")}
+                                </p>
+                                {room.expectedRent !== room.currentRent && (
+                                  <p className="text-xs text-muted-foreground">
+                                    (Current: ₹{room.currentRent.toLocaleString("en-IN")})
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                          {selectedTenant.rooms.length > 1 && (
+                            <div className="flex items-center justify-between text-sm pt-2 border-t font-semibold">
+                              <p>Total Expected</p>
+                              <p>
+                                ₹{selectedTenant.rooms
+                                  .reduce((sum, room) => sum + room.expectedRent, 0)
+                                  .toLocaleString("en-IN")}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -377,23 +421,7 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
 
             {/* Amount */}
             <div className="grid gap-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="amount">Amount *</Label>
-                {selectedTenant && (
-                  <Button
-                    type="button"
-                    variant="link"
-                    size="sm"
-                    className="h-auto p-0 text-xs"
-                    onClick={handleQuickFill}
-                  >
-                    {(() => {
-                      const expectedTotal = selectedTenant.rooms?.reduce((sum, room) => sum + room.expectedRent, 0) || selectedTenant.monthlyRent;
-                      return `Fill expected rent (₹${expectedTotal.toLocaleString("en-IN")})`;
-                    })()}
-                  </Button>
-                )}
-              </div>
+              <Label htmlFor="amount">Amount *</Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₹</span>
                 <Input
@@ -409,6 +437,54 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
                   required={formData.type !== "credit"}
                 />
               </div>
+
+              {/* Quick Action Buttons */}
+              {selectedTenant && formData.type === "payment" && (
+                <div className="flex gap-2 flex-wrap">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => {
+                      const expectedTotal = selectedTenant.rooms?.reduce((sum, room) => sum + room.expectedRent, 0) || selectedTenant.monthlyRent;
+                      setFormData((prev) => ({ ...prev, amount: expectedTotal }));
+                    }}
+                  >
+                    Full Rent
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => {
+                      const expectedTotal = selectedTenant.rooms?.reduce((sum, room) => sum + room.expectedRent, 0) || selectedTenant.monthlyRent;
+                      setFormData((prev) => ({ ...prev, amount: Math.floor(expectedTotal / 2) }));
+                    }}
+                  >
+                    Half Rent
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => setFormData((prev) => ({ ...prev, amount: 1000 }))}
+                  >
+                    ₹1,000
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => setFormData((prev) => ({ ...prev, amount: 5000 }))}
+                  >
+                    ₹5,000
+                  </Button>
+                </div>
+              )}
               {formData.type === "adjustment" && (
                 <Alert>
                   <AlertDescription>
@@ -604,38 +680,39 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
               )}
             </div>
 
-            {/* Method */}
-            <div className="grid gap-2">
-              <Label htmlFor="method">Payment Method *</Label>
-              <Select
-                value={formData.method}
-                onValueChange={(value) => setFormData((prev) => ({ ...prev, method: value }))}
-                disabled={submitting}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {paymentMethods.map((method) => (
-                    <SelectItem key={method.value} value={method.value}>
-                      {method.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Method & Date - Side by Side */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="method">Payment Method *</Label>
+                <Select
+                  value={formData.method}
+                  onValueChange={(value) => setFormData((prev) => ({ ...prev, method: value }))}
+                  disabled={submitting}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {paymentMethods.map((method) => (
+                      <SelectItem key={method.value} value={method.value}>
+                        {method.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-            {/* Date */}
-            <div className="grid gap-2">
-              <Label htmlFor="date">Date *</Label>
-              <Input
-                id="date"
-                type="date"
-                value={formData.date}
-                onChange={(e) => setFormData((prev) => ({ ...prev, date: e.target.value }))}
-                disabled={submitting}
-                required
-              />
+              <div className="grid gap-2">
+                <Label htmlFor="date">Date *</Label>
+                <Input
+                  id="date"
+                  type="date"
+                  value={formData.date}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, date: e.target.value }))}
+                  disabled={submitting}
+                  required
+                />
+              </div>
             </div>
 
             {/* Notes */}
@@ -650,6 +727,37 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
                 placeholder="Additional notes..."
               />
             </div>
+
+            {/* Compact Payment Summary */}
+            {selectedTenant && formData.type === "payment" && formData.amount > 0 && (
+              <div className="rounded-lg bg-muted/50 p-3 text-sm border">
+                {(() => {
+                  const expectedRent = selectedTenant.rooms?.reduce((sum, room) => sum + room.expectedRent, 0) || selectedTenant.monthlyRent;
+                  const totalAdjustments = (formData.discount || 0) + (formData.maintenanceDeduction || 0) + (formData.otherAdjustment || 0);
+                  const amountDue = Math.max(0, expectedRent - totalAdjustments);
+                  const amountPaid = formData.amount || 0;
+                  const difference = amountPaid - amountDue;
+
+                  return (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">
+                        Expected: <span className="font-medium text-foreground">₹{amountDue.toLocaleString("en-IN")}</span>
+                        {" | "}
+                        Paying: <span className="font-medium text-foreground">₹{amountPaid.toLocaleString("en-IN")}</span>
+                      </span>
+                      <span className={cn(
+                        "font-semibold",
+                        difference === 0 ? "text-green-600" : difference > 0 ? "text-blue-600" : "text-orange-600"
+                      )}>
+                        {difference === 0 ? "✓ Fully Paid" :
+                         difference > 0 ? `+₹${difference.toLocaleString("en-IN")} Credit` :
+                         `₹${Math.abs(difference).toLocaleString("en-IN")} Short`}
+                      </span>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={submitting}>
