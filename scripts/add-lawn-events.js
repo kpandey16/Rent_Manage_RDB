@@ -1,6 +1,6 @@
 /**
  * Migration script to add lawn events management tables
- * Run with: node scripts/add-lawn-events.js
+ * Run with: node scripts/add-lawn-events.js        
  */
 
 import { createClient } from "@libsql/client";
