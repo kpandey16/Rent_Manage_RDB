@@ -55,21 +55,6 @@ async function isMostRecentPayment(tenantId: string, ledgerId: string): Promise<
 }
 
 /**
- * Check if payment is recent (within last 24 hours)
- */
-async function isRecentPayment(ledgerId: string): Promise<boolean> {
-  const result = await db.execute({
-    sql: `SELECT
-            CASE WHEN created_at >= datetime('now', '-24 hours') THEN 1 ELSE 0 END as is_recent
-          FROM tenant_ledger
-          WHERE id = ?`,
-    args: [ledgerId]
-  });
-
-  return result.rows[0]?.is_recent === 1;
-}
-
-/**
  * Check if credit generated from this payment was used in subsequent transactions
  */
 async function checkCreditUsageAfterPayment(
@@ -199,19 +184,12 @@ export async function validatePaymentRollback(
     // Step 5: Check if this is a credit-only payment (no rent applied)
     const isCreditOnly = periods.length === 0;
 
-    // For credit-only entries (payments/adjustments), allow rollback if recent (within 24 hours)
-    // For rent-applied entries, must be most recent
+    // For credit-only entries (payments/adjustments), always allow rollback
     if (isCreditOnly) {
-      const isRecent = await isRecentPayment(ledgerId);
-      if (!isRecent) {
-        const entryType = p.type === 'adjustment' ? 'Adjustments' : 'Credit-only payments';
-        errors.push(`${entryType} can be deleted within 24 hours of creation`);
-      } else {
-        const entryType = p.type === 'adjustment'
-          ? `This ${p.subtype || 'adjustment'} only added to credit balance`
-          : "This payment only added to credit balance";
-        warnings.push(`${entryType} (no rent periods paid). Safe to rollback.`);
-      }
+      const entryType = p.type === 'adjustment'
+        ? `This ${p.subtype || 'adjustment'} only added to credit balance`
+        : "This payment only added to credit balance";
+      warnings.push(`${entryType} (no rent periods paid). Safe to rollback.`);
     } else {
       // Entry was applied to rent - must be most recent
       const isMostRecent = await isMostRecentPayment(p.tenant_id, ledgerId);
