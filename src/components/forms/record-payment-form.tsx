@@ -78,6 +78,13 @@ const paymentMethods = [
   { value: "cheque", label: "Cheque" },
 ];
 
+const adjustmentTypes = [
+  { value: "none", label: "No Adjustment", description: "" },
+  { value: "discount", label: "Discount", description: "One-time discount given to tenant" },
+  { value: "maintenance", label: "Maintenance Deduction", description: "Deduct for tenant-paid maintenance expenses" },
+  { value: "other", label: "Other Adjustment", description: "Any other adjustment or waiver" },
+];
+
 interface RecordPaymentFormProps {
   trigger?: React.ReactNode;
   onSubmit?: (data: PaymentFormData) => void;
@@ -91,7 +98,10 @@ export interface PaymentFormData {
   method: string;
   date: string;
   notes: string;
-  // Adjustments (kept as separate fields for UX, backend converts to single type)
+  // Adjustments - single type and amount
+  adjustmentType?: string;
+  adjustmentAmount?: number;
+  // Legacy fields for backward compatibility
   discount?: number;
   maintenanceDeduction?: number;
   otherAdjustment?: number;
@@ -114,6 +124,8 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
     method: "cash",
     date: format(new Date(), "yyyy-MM-dd"),
     notes: "",
+    adjustmentType: "none",
+    adjustmentAmount: 0,
     discount: 0,
     maintenanceDeduction: 0,
     otherAdjustment: 0,
@@ -517,9 +529,9 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium">Adjustments (Optional)</span>
                     <span className="text-xs text-muted-foreground">
-                      {(formData.discount || 0) + (formData.maintenanceDeduction || 0) + (formData.otherAdjustment || 0) > 0
-                        ? `₹${((formData.discount || 0) + (formData.maintenanceDeduction || 0) + (formData.otherAdjustment || 0)).toLocaleString("en-IN")} applied`
-                        : "Add discounts or deductions"}
+                      {formData.adjustmentType && formData.adjustmentType !== "none" && (formData.adjustmentAmount || 0) > 0
+                        ? `${adjustmentTypes.find(t => t.value === formData.adjustmentType)?.label}: ₹${(formData.adjustmentAmount || 0).toLocaleString("en-IN")}`
+                        : "Add discount or deduction"}
                     </span>
                   </div>
                   {showAdjustments ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -527,70 +539,77 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
 
                 {showAdjustments && (
                   <div className="p-4 pt-0 space-y-3 border-t">
-                    {/* Discount */}
+                    {/* Adjustment Type */}
                     <div className="grid gap-2">
-                      <Label htmlFor="discount" className="text-sm">Discount</Label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₹</span>
-                        <Input
-                          id="discount"
-                          type="number"
-                          min="0"
-                          step="1"
-                          value={formData.discount || ""}
-                          onChange={(e) => setFormData((prev) => ({ ...prev, discount: Number(e.target.value) || 0 }))}
-                          className="pl-7"
-                          placeholder="0"
-                          disabled={submitting}
-                        />
-                      </div>
-                      <p className="text-xs text-muted-foreground">One-time discount given to tenant</p>
+                      <Label htmlFor="adjustmentType" className="text-sm">Adjustment Type</Label>
+                      <Select
+                        value={formData.adjustmentType || "none"}
+                        onValueChange={(value) => {
+                          setFormData((prev) => ({
+                            ...prev,
+                            adjustmentType: value,
+                            adjustmentAmount: value === "none" ? 0 : prev.adjustmentAmount,
+                            // Update legacy fields for backend compatibility
+                            discount: value === "discount" ? prev.adjustmentAmount || 0 : 0,
+                            maintenanceDeduction: value === "maintenance" ? prev.adjustmentAmount || 0 : 0,
+                            otherAdjustment: value === "other" ? prev.adjustmentAmount || 0 : 0,
+                          }));
+                        }}
+                        disabled={submitting}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {adjustmentTypes.map((type) => (
+                            <SelectItem key={type.value} value={type.value}>
+                              {type.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {formData.adjustmentType && formData.adjustmentType !== "none" && (
+                        <p className="text-xs text-muted-foreground">
+                          {adjustmentTypes.find(t => t.value === formData.adjustmentType)?.description}
+                        </p>
+                      )}
                     </div>
 
-                    {/* Maintenance Deduction */}
-                    <div className="grid gap-2">
-                      <Label htmlFor="maintenance" className="text-sm">Maintenance Deduction</Label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₹</span>
-                        <Input
-                          id="maintenance"
-                          type="number"
-                          min="0"
-                          step="1"
-                          value={formData.maintenanceDeduction || ""}
-                          onChange={(e) => setFormData((prev) => ({ ...prev, maintenanceDeduction: Number(e.target.value) || 0 }))}
-                          className="pl-7"
-                          placeholder="0"
-                          disabled={submitting}
-                        />
+                    {/* Adjustment Amount - Only show if type is selected */}
+                    {formData.adjustmentType && formData.adjustmentType !== "none" && (
+                      <div className="grid gap-2">
+                        <Label htmlFor="adjustmentAmount" className="text-sm">Amount</Label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₹</span>
+                          <Input
+                            id="adjustmentAmount"
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={formData.adjustmentAmount || ""}
+                            onChange={(e) => {
+                              const amount = Number(e.target.value) || 0;
+                              setFormData((prev) => ({
+                                ...prev,
+                                adjustmentAmount: amount,
+                                // Update legacy fields for backend compatibility
+                                discount: prev.adjustmentType === "discount" ? amount : 0,
+                                maintenanceDeduction: prev.adjustmentType === "maintenance" ? amount : 0,
+                                otherAdjustment: prev.adjustmentType === "other" ? amount : 0,
+                              }));
+                            }}
+                            className="pl-7"
+                            placeholder="0"
+                            disabled={submitting}
+                          />
+                        </div>
                       </div>
-                      <p className="text-xs text-muted-foreground">Deduct for tenant-paid maintenance expenses</p>
-                    </div>
-
-                    {/* Other Adjustment */}
-                    <div className="grid gap-2">
-                      <Label htmlFor="otherAdjustment" className="text-sm">Other Adjustment</Label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₹</span>
-                        <Input
-                          id="otherAdjustment"
-                          type="number"
-                          min="0"
-                          step="1"
-                          value={formData.otherAdjustment || ""}
-                          onChange={(e) => setFormData((prev) => ({ ...prev, otherAdjustment: Number(e.target.value) || 0 }))}
-                          className="pl-7"
-                          placeholder="0"
-                          disabled={submitting}
-                        />
-                      </div>
-                      <p className="text-xs text-muted-foreground">Any other adjustment or waiver</p>
-                    </div>
+                    )}
 
                     {/* Real-time Calculation Summary */}
-                    {(() => {
+                    {formData.adjustmentType && formData.adjustmentType !== "none" && (formData.adjustmentAmount || 0) > 0 && (() => {
                       const expectedRent = selectedTenant.rooms?.reduce((sum, room) => sum + room.expectedRent, 0) || selectedTenant.monthlyRent;
-                      const totalAdjustments = (formData.discount || 0) + (formData.maintenanceDeduction || 0) + (formData.otherAdjustment || 0);
+                      const totalAdjustments = formData.adjustmentAmount || 0;
                       const amountDue = Math.max(0, expectedRent - totalAdjustments);
                       const amountPaid = formData.amount || 0;
                       const difference = amountPaid - amountDue;
@@ -733,7 +752,7 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
               <div className="rounded-lg bg-muted/50 p-3 text-sm border">
                 {(() => {
                   const monthlyRent = selectedTenant.rooms?.reduce((sum, room) => sum + room.expectedRent, 0) || selectedTenant.monthlyRent;
-                  const totalAdjustments = (formData.discount || 0) + (formData.maintenanceDeduction || 0) + (formData.otherAdjustment || 0);
+                  const totalAdjustments = formData.adjustmentType && formData.adjustmentType !== "none" ? (formData.adjustmentAmount || 0) : 0;
                   const netPayment = (formData.amount || 0) - totalAdjustments;
 
                   // Calculate how many months this payment covers
