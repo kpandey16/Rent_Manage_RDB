@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowDownLeft, ChevronRight, Loader2, RotateCcw } from "lucide-react";
+import { ArrowDownLeft, ChevronRight, ChevronDown, Loader2, RotateCcw, CheckCircle2 } from "lucide-react";
 import { RecordPaymentForm } from "@/components/forms/record-payment-form";
 import { RollbackPaymentDialog } from "@/components/rollback/rollback-payment-dialog";
 import { RollbackHistoryTable } from "@/components/rollback/rollback-history-table";
@@ -34,6 +34,7 @@ export default function PaymentsPage() {
   const [visibleCount, setVisibleCount] = useState(10);
   const [rollbackDialogOpen, setRollbackDialogOpen] = useState(false);
   const [selectedLedgerId, setSelectedLedgerId] = useState<string | null>(null);
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
 
   // Format date as DD-MMM-YY
   const formatDate = (dateString: string) => {
@@ -80,6 +81,18 @@ export default function PaymentsPage() {
     setSelectedLedgerId(null);
   };
 
+  const toggleCardExpansion = (transactionId: string) => {
+    setExpandedCards(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(transactionId)) {
+        newSet.delete(transactionId);
+      } else {
+        newSet.add(transactionId);
+      }
+      return newSet;
+    });
+  };
+
   // Check if transaction can show rollback button
   const canShowRollback = (transaction: Transaction) => {
     // Allow rollback for:
@@ -118,90 +131,160 @@ export default function PaymentsPage() {
             </div>
           ) : (
             <>
-              {transactions.slice(0, visibleCount).map((transaction) => (
-                <Card key={transaction.id} className="hover:bg-muted/50 transition-colors">
-                  <CardContent className="p-4">
-                    <Link href={`/tenants/${transaction.tenant_id}`} className="block">
-                      <div className="flex items-center justify-between">
-                        <div className="space-y-1 flex-1">
-                          <div className="flex items-center gap-2">
-                            <ArrowDownLeft className="h-4 w-4 text-green-600" />
-                            <span className="font-medium">{transaction.tenant_name}</span>
-                          </div>
-                          <p className="text-sm text-muted-foreground">
-                            {formatDate(transaction.transaction_date)}
-                            {transaction.payment_method && ` • ${transaction.payment_method}`}
-                            {transaction.collectedBy && ` • Collected by: ${transaction.collectedBy}`}
-                          </p>
-                          {transaction.appliedTo && (
-                            <p className="text-xs text-muted-foreground">
-                              Applied to: {transaction.appliedTo}
-                            </p>
-                          )}
-                          {transaction.creditRemaining !== null && transaction.creditRemaining !== undefined && (
-                            <p className="text-xs text-muted-foreground">
-                              {transaction.creditRemaining > 0 ? 'Remaining credit' : transaction.creditRemaining < 0 ? 'Remaining dues' : 'Fully applied'}: {transaction.creditRemaining !== 0 && `₹${Math.abs(transaction.creditRemaining).toLocaleString("en-IN")}`}
-                            </p>
-                          )}
-                          {transaction.description && transaction.description !== "Payment received" && (
-                            <p className="text-xs text-muted-foreground">
-                              {transaction.description}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="text-right">
-                            {(() => {
-                              const amount = Number(transaction.amount);
-                              const isPositive = amount >= 0;
-                              return (
-                                <span className={`text-lg font-semibold ${isPositive ? 'text-green-600' : 'text-orange-600'}`}>
-                                  {isPositive ? '+' : ''}₹{Math.abs(amount).toLocaleString("en-IN")}
-                                </span>
-                              );
-                            })()}
-                            <Badge variant="outline" className="ml-2 text-xs capitalize">
-                              {transaction.type}
-                            </Badge>
+              {transactions.slice(0, visibleCount).map((transaction) => {
+                const isExpanded = expandedCards.has(transaction.id);
+                const amount = Number(transaction.amount);
+                const isPositive = amount >= 0;
+                const isFullyApplied = transaction.creditRemaining === 0;
+                const hasCredit = transaction.creditRemaining !== null && transaction.creditRemaining !== undefined && transaction.creditRemaining > 0;
+
+                return (
+                  <Card key={transaction.id} className="hover:bg-muted/50 transition-colors">
+                    <CardContent className="p-0">
+                      {/* Collapsed View - Always Visible */}
+                      <div
+                        className="p-4 cursor-pointer"
+                        onClick={() => toggleCardExpansion(transaction.id)}
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          {/* Left: Tenant name and basic info */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              {isFullyApplied ? (
+                                <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" />
+                              ) : (
+                                <ArrowDownLeft className="h-4 w-4 text-green-600 flex-shrink-0" />
+                              )}
+                              <span className="font-medium truncate">{transaction.tenant_name}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <span>{formatDate(transaction.transaction_date)}</span>
+                              {transaction.appliedTo && (
+                                <>
+                                  <span>•</span>
+                                  <span className="truncate">Applied to: {transaction.appliedTo}</span>
+                                </>
+                              )}
+                            </div>
                           </div>
 
-                          {/* Action buttons */}
-                          <div className="flex items-center gap-1">
-                            {/* Download Receipt button - for payment and credit types */}
-                            {(transaction.type === "payment" || transaction.type === "credit") && (
-                              <div onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
-                                <DownloadReceiptButton
-                                  transactionId={transaction.id}
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                />
+                          {/* Right: Amount, badge, and expand icon */}
+                          <div className="flex items-start gap-2">
+                            <div className="text-right">
+                              <div className={`text-lg font-semibold whitespace-nowrap ${isPositive ? 'text-green-600' : 'text-orange-600'}`}>
+                                {isPositive ? '+' : ''}₹{Math.abs(amount).toLocaleString("en-IN")}
                               </div>
-                            )}
-
-                            {/* Rollback button - only for payment type with cash/upi */}
-                            {canShowRollback(transaction) ? (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                onClick={(e) => handleRollbackClick(e, transaction.id)}
-                                title="Rollback payment"
-                              >
-                                <RotateCcw className="h-4 w-4" />
-                              </Button>
+                              <Badge variant="outline" className="text-xs capitalize mt-1">
+                                {transaction.type}
+                              </Badge>
+                            </div>
+                            {isExpanded ? (
+                              <ChevronDown className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-1" />
                             ) : (
-                              !transaction.type.match(/payment|credit/) && (
-                                <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                              )
+                              <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-1" />
                             )}
                           </div>
                         </div>
                       </div>
-                    </Link>
-                  </CardContent>
-                </Card>
-              ))}
+
+                      {/* Expanded View - Details */}
+                      {isExpanded && (
+                        <div className="px-4 pb-4 pt-0 space-y-3 border-t">
+                          <div className="pt-3 space-y-2">
+                            {/* Collected by */}
+                            {transaction.collectedBy && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <span className="text-muted-foreground">Collected by:</span>
+                                <span className="font-medium">{transaction.collectedBy}</span>
+                              </div>
+                            )}
+
+                            {/* Payment method */}
+                            {transaction.payment_method && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <span className="text-muted-foreground">Payment method:</span>
+                                <span className="font-medium capitalize">{transaction.payment_method}</span>
+                              </div>
+                            )}
+
+                            {/* Breakdown */}
+                            <div className="text-sm space-y-1">
+                              <div className="font-medium text-muted-foreground">Breakdown:</div>
+                              {transaction.appliedTo ? (
+                                <div className="pl-3">
+                                  <div className="flex justify-between">
+                                    <span>Applied to rent:</span>
+                                    <span className="font-medium">₹{Math.abs(amount).toLocaleString("en-IN")}</span>
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">({transaction.appliedTo})</div>
+                                </div>
+                              ) : (
+                                <div className="pl-3 text-muted-foreground italic">
+                                  Credit added only (no rent periods paid)
+                                </div>
+                              )}
+
+                              {hasCredit && (
+                                <div className="pl-3 flex justify-between pt-1 border-t">
+                                  <span className="text-muted-foreground">→ Remaining credit:</span>
+                                  <span className="font-medium text-green-600">
+                                    ₹{transaction.creditRemaining.toLocaleString("en-IN")}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Notes */}
+                            {transaction.description && transaction.description !== "Payment received" && (
+                              <div className="text-sm pt-2 border-t">
+                                <div className="text-muted-foreground mb-1">📝 Note:</div>
+                                <div className="text-foreground">{transaction.description}</div>
+                              </div>
+                            )}
+
+                            {/* Action buttons */}
+                            <div className="flex items-center gap-2 pt-2">
+                              <Link href={`/tenants/${transaction.tenant_id}`}>
+                                <Button variant="outline" size="sm">
+                                  View Tenant Details
+                                </Button>
+                              </Link>
+
+                              {/* Download Receipt button */}
+                              {(transaction.type === "payment" || transaction.type === "credit") && (
+                                <div onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+                                  <DownloadReceiptButton
+                                    transactionId={transaction.id}
+                                    variant="outline"
+                                    size="sm"
+                                  />
+                                </div>
+                              )}
+
+                              {/* Rollback button */}
+                              {canShowRollback(transaction) && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleRollbackClick(e, transaction.id);
+                                  }}
+                                >
+                                  <RotateCcw className="h-4 w-4 mr-1" />
+                                  Rollback
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
 
               {/* Load More Button */}
               {visibleCount < transactions.length && (
