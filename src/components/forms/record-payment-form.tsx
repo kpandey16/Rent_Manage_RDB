@@ -732,29 +732,68 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
             {selectedTenant && formData.type === "payment" && formData.amount > 0 && (
               <div className="rounded-lg bg-muted/50 p-3 text-sm border">
                 {(() => {
-                  const expectedRent = selectedTenant.rooms?.reduce((sum, room) => sum + room.expectedRent, 0) || selectedTenant.monthlyRent;
+                  const monthlyRent = selectedTenant.rooms?.reduce((sum, room) => sum + room.expectedRent, 0) || selectedTenant.monthlyRent;
                   const totalAdjustments = (formData.discount || 0) + (formData.maintenanceDeduction || 0) + (formData.otherAdjustment || 0);
-                  const amountDue = Math.max(0, expectedRent - totalAdjustments);
-                  const amountPaid = formData.amount || 0;
-                  const difference = amountPaid - amountDue;
+                  const netPayment = (formData.amount || 0) - totalAdjustments;
 
-                  return (
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">
-                        Expected: <span className="font-medium text-foreground">₹{amountDue.toLocaleString("en-IN")}</span>
-                        {" | "}
-                        Paying: <span className="font-medium text-foreground">₹{amountPaid.toLocaleString("en-IN")}</span>
-                      </span>
-                      <span className={cn(
-                        "font-semibold",
-                        difference === 0 ? "text-green-600" : difference > 0 ? "text-blue-600" : "text-orange-600"
-                      )}>
-                        {difference === 0 ? "✓ Fully Paid" :
-                         difference > 0 ? `+₹${difference.toLocaleString("en-IN")} Credit` :
-                         `₹${Math.abs(difference).toLocaleString("en-IN")} Short`}
-                      </span>
-                    </div>
-                  );
+                  // Calculate how many months this payment covers
+                  const monthsCovered = Math.floor(netPayment / monthlyRent);
+                  const remainingAfterMonths = netPayment - (monthsCovered * monthlyRent);
+
+                  // Generate display message
+                  if (monthsCovered === 0) {
+                    return (
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">
+                          Monthly rent: <span className="font-medium text-foreground">₹{monthlyRent.toLocaleString("en-IN")}</span>
+                        </span>
+                        <span className="font-semibold text-orange-600">
+                          Partial payment (₹{(monthlyRent - netPayment).toLocaleString("en-IN")} short)
+                        </span>
+                      </div>
+                    );
+                  }
+
+                  if (monthsCovered === 1 && remainingAfterMonths === 0) {
+                    return (
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">
+                          Paying: <span className="font-medium text-foreground">₹{netPayment.toLocaleString("en-IN")}</span>
+                        </span>
+                        <span className="font-semibold text-green-600">
+                          ✓ Covers 1 month fully
+                        </span>
+                      </div>
+                    );
+                  }
+
+                  if (monthsCovered >= 1 && remainingAfterMonths === 0) {
+                    return (
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">
+                          Paying: <span className="font-medium text-foreground">₹{netPayment.toLocaleString("en-IN")}</span>
+                        </span>
+                        <span className="font-semibold text-green-600">
+                          ✓ Covers {monthsCovered} months fully
+                        </span>
+                      </div>
+                    );
+                  }
+
+                  if (monthsCovered >= 1 && remainingAfterMonths > 0) {
+                    return (
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <span className="text-muted-foreground">
+                          Paying: <span className="font-medium text-foreground">₹{netPayment.toLocaleString("en-IN")}</span>
+                        </span>
+                        <span className="font-semibold text-green-600">
+                          ✓ Covers {monthsCovered} month{monthsCovered > 1 ? 's' : ''} + ₹{remainingAfterMonths.toLocaleString("en-IN")} credit
+                        </span>
+                      </div>
+                    );
+                  }
+
+                  return null;
                 })()}
               </div>
             )}
