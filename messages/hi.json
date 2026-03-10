@@ -25,6 +25,7 @@
     "recordPayment": "भुगतान दर्ज करें",
     "selectTenant": "किरायेदार चुनें",
     "searchTenant": "किरायेदार खोजें...",
+    "noTenantFound": "कोई किरायेदार नहीं मिला",
     "amount": "राशि",
     "type": "लेनदेन प्रकार",
     "method": "भुगतान विधि",
@@ -39,7 +40,19 @@
     "cancel": "रद्द करें",
     "fullRent": "पूरा किराया",
     "halfRent": "आधा किराया",
-    "autoApplyToRent": "किराए में स्वतः लागू करें"
+    "autoApplyToRent": "किराए में स्वतः लागू करें",
+    "expectedRent": "अपेक्षित किराया",
+    "totalAdjustments": "कुल समायोजन",
+    "amountDue": "देय राशि",
+    "amountPaid": "भुगतान की गई राशि",
+    "lastPaid": "अंतिम भुगतान",
+    "credit": "क्रेडिट",
+    "dues": "बकाया",
+    "addDiscountOrDeduction": "छूट या कटौती जोड़ें",
+    "tipUseAdjustments": "सुझाव: छूट या कटौती के लिए नीचे \"समायोजन\" अनुभाग का उपयोग करें",
+    "forPaymentWithAdjustments": "समायोजन के साथ भुगतान के लिए, \"भुगतान\" प्रकार का उपयोग करें और \"समायोजन\" अनुभाग खोलें",
+    "noCreditAvailable": "लागू करने के लिए कोई क्रेडिट उपलब्ध नहीं है।",
+    "roomsAndExpectedRent": "कमरे और अपेक्षित किराया"
   },
   "paymentTypes": {
     "payment": "भुगतान",

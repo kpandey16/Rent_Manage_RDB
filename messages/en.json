@@ -25,6 +25,7 @@
     "recordPayment": "Record Payment",
     "selectTenant": "Select Tenant",
     "searchTenant": "Search tenant...",
+    "noTenantFound": "No tenant found",
     "amount": "Amount",
     "type": "Transaction Type",
     "method": "Payment Method",
@@ -39,7 +40,19 @@
     "cancel": "Cancel",
     "fullRent": "Full Rent",
     "halfRent": "Half Rent",
-    "autoApplyToRent": "Auto-apply to rent"
+    "autoApplyToRent": "Auto-apply to rent",
+    "expectedRent": "Expected Rent",
+    "totalAdjustments": "Total Adjustments",
+    "amountDue": "Amount Due",
+    "amountPaid": "Amount Paid",
+    "lastPaid": "Last Paid",
+    "credit": "Credit",
+    "dues": "Dues",
+    "addDiscountOrDeduction": "Add discount or deduction",
+    "tipUseAdjustments": "Tip: Use \"Adjustments\" section below for discounts or deductions",
+    "forPaymentWithAdjustments": "For payment with adjustments, use \"Payment\" type and expand \"Adjustments\" section",
+    "noCreditAvailable": "No credit available to apply.",
+    "roomsAndExpectedRent": "Rooms & Expected Rent"
   },
   "paymentTypes": {
     "payment": "Payment",

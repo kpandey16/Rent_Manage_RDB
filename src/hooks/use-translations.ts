@@ -26,8 +26,10 @@ export function useTranslations() {
   }, []);
 
   const setLocale = (newLocale: Locale) => {
-    setLocaleState(newLocale);
+    // Save to localStorage first
     localStorage.setItem('locale', newLocale);
+    // Force page reload to apply new language
+    window.location.reload();
   };
 
   const t = (key: string): string => {

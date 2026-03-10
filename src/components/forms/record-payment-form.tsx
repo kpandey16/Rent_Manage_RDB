@@ -216,7 +216,7 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
       }
 
       const data = await response.json();
-      toast.success(data.message || "Transaction recorded successfully");
+      toast.success(data.message || t("messages.paymentRecorded"));
       onSubmit?.(formData);
       setOpen(false);
       // Reset form
@@ -227,6 +227,8 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
         method: "cash",
         date: format(new Date(), "yyyy-MM-dd"),
         notes: "",
+        adjustmentType: "none",
+        adjustmentAmount: 0,
         discount: 0,
         maintenanceDeduction: 0,
         otherAdjustment: 0,
@@ -235,7 +237,7 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
       setShowAdjustments(false);
     } catch (error) {
       console.error("Error recording transaction:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to record transaction");
+      toast.error(error instanceof Error ? error.message : t("messages.paymentFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -255,13 +257,13 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
         {trigger || (
           <Button size="sm">
             <Plus className="h-4 w-4 mr-1" />
-            Record Payment
+            {t("payment.recordPayment")}
           </Button>
         )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Record Payment</DialogTitle>
+          <DialogTitle>{t("payment.recordPayment")}</DialogTitle>
           <DialogDescription>
             Record a new payment from a tenant. Fill in the details below.
           </DialogDescription>
@@ -270,7 +272,7 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
           <div className="grid gap-4 py-4">
             {/* Tenant Selection */}
             <div className="grid gap-2">
-              <Label htmlFor="tenant">Tenant *</Label>
+              <Label htmlFor="tenant">{t("payment.selectTenant")} *</Label>
               <Popover open={tenantComboboxOpen} onOpenChange={setTenantComboboxOpen}>
                 <PopoverTrigger asChild>
                   <Button
@@ -283,16 +285,16 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
                     {formData.tenantId
                       ? tenants.find((tenant) => tenant.id === formData.tenantId)?.name
                       : loading
-                      ? "Loading tenants..."
-                      : "Select tenant..."}
+                      ? t("common.loading")
+                      : t("payment.searchTenant")}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[400px] p-0">
                   <Command>
-                    <CommandInput placeholder="Search tenant..." />
+                    <CommandInput placeholder={t("payment.searchTenant")} />
                     <CommandList>
-                      <CommandEmpty>No tenant found.</CommandEmpty>
+                      <CommandEmpty>{t("payment.noTenantFound")}</CommandEmpty>
                       <CommandGroup>
                         {tenants.map((tenant) => (
                           <CommandItem
@@ -435,7 +437,7 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
 
             {/* Amount */}
             <div className="grid gap-2">
-              <Label htmlFor="amount">Amount *</Label>
+              <Label htmlFor="amount">{t("payment.amount")} *</Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₹</span>
                 <Input
@@ -465,7 +467,7 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
                       setFormData((prev) => ({ ...prev, amount: expectedTotal }));
                     }}
                   >
-                    Full Rent
+                    {t("payment.fullRent")}
                   </Button>
                   <Button
                     type="button"
@@ -477,7 +479,7 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
                       setFormData((prev) => ({ ...prev, amount: Math.floor(expectedTotal / 2) }));
                     }}
                   >
-                    Half Rent
+                    {t("payment.halfRent")}
                   </Button>
                   <Button
                     type="button"
@@ -674,7 +676,7 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
 
             {/* Type */}
             <div className="grid gap-2">
-              <Label htmlFor="type">Transaction Type *</Label>
+              <Label htmlFor="type">{t("payment.type")} *</Label>
               <Select
                 value={formData.type}
                 onValueChange={(value) => setFormData((prev) => ({ ...prev, type: value }))}
@@ -686,19 +688,19 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
                 <SelectContent>
                   {paymentTypes.map((type) => (
                     <SelectItem key={type.value} value={type.value}>
-                      {type.label}
+                      {t(`paymentTypes.${type.value}`)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               {formData.type === "payment" && selectedTenant && (
                 <p className="text-xs text-muted-foreground">
-                  Tip: Use "Adjustments" section below for discounts or deductions
+                  {t("payment.tipUseAdjustments")}
                 </p>
               )}
               {formData.type === "adjustment" && (
                 <p className="text-xs text-muted-foreground">
-                  For payment with adjustments, use "Payment" type and expand "Adjustments" section
+                  {t("payment.forPaymentWithAdjustments")}
                 </p>
               )}
             </div>
@@ -706,7 +708,7 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
             {/* Method & Date - Side by Side */}
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="method">Payment Method *</Label>
+                <Label htmlFor="method">{t("payment.method")} *</Label>
                 <Select
                   value={formData.method}
                   onValueChange={(value) => setFormData((prev) => ({ ...prev, method: value }))}
@@ -718,7 +720,7 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
                   <SelectContent>
                     {paymentMethods.map((method) => (
                       <SelectItem key={method.value} value={method.value}>
-                        {method.label}
+                        {t(`paymentMethods.${method.value}`)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -726,7 +728,7 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="date">Date *</Label>
+                <Label htmlFor="date">{t("payment.date")} *</Label>
                 <Input
                   id="date"
                   type="date"
@@ -740,7 +742,7 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
 
             {/* Notes */}
             <div className="grid gap-2">
-              <Label htmlFor="notes">Notes (optional)</Label>
+              <Label htmlFor="notes">{t("payment.notes")} (optional)</Label>
               <Input
                 id="notes"
                 type="text"
@@ -823,11 +825,11 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={submitting}>
-              Cancel
+              {t("payment.cancel")}
             </Button>
             <Button type="submit" disabled={!formData.tenantId || (formData.type !== "credit" && !formData.amount) || submitting}>
               {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {submitting ? "Recording..." : "Record Payment"}
+              {submitting ? t("payment.submitting") : t("payment.submit")}
             </Button>
           </DialogFooter>
         </form>
