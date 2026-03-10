@@ -42,7 +42,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "@/hooks/use-translations";
-import { NoTranslate } from "@/components/no-translate";
+import { DisplayName, getDisplayName } from "@/components/display-name";
 
 interface Room {
   id: string;
@@ -57,6 +57,7 @@ interface Room {
 interface Tenant {
   id: string;
   name: string;
+  name_hi?: string | null;
   monthlyRent: number;
   securityDeposit: number;
   lastPaidMonth: string | null;
@@ -284,7 +285,10 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
                     disabled={loading || submitting}
                   >
                     {formData.tenantId ? (
-                      <NoTranslate>{tenants.find((tenant) => tenant.id === formData.tenantId)?.name}</NoTranslate>
+                      (() => {
+                        const tenant = tenants.find((t) => t.id === formData.tenantId);
+                        return tenant ? <DisplayName name={tenant.name} nameHi={tenant.name_hi} /> : null;
+                      })()
                     ) : loading ? (
                       t("common.loading")
                     ) : (
@@ -314,7 +318,7 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
                                 formData.tenantId === tenant.id ? "opacity-100" : "opacity-0"
                               )}
                             />
-                            <NoTranslate>{tenant.name}</NoTranslate>
+                            <DisplayName name={tenant.name} nameHi={tenant.name_hi} />
                           </CommandItem>
                         ))}
                       </CommandGroup>
