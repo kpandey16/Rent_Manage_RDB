@@ -887,7 +887,7 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
                 </span>
               </div>
             )}
-            {selectedTenant?.nextUnpaidPeriod && formData.type === "payment" && (
+            {selectedTenant?.nextUnpaidPeriod && (formData.type === "payment" || formData.type === "credit") && (
               <div className="flex justify-between text-sm bg-blue-50 dark:bg-blue-950 p-2 rounded">
                 <span className="text-muted-foreground">📅 Paying for:</span>
                 <span className="font-semibold text-blue-700 dark:text-blue-300">
