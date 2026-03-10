@@ -41,6 +41,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "@/hooks/use-translations";
 
 interface Room {
   id: string;
@@ -109,6 +110,7 @@ export interface PaymentFormData {
 }
 
 export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: RecordPaymentFormProps) {
+  const { t } = useTranslations();
   const [open, setOpen] = useState(false);
   const [tenantComboboxOpen, setTenantComboboxOpen] = useState(false);
   const [tenants, setTenants] = useState<Tenant[]>([]);

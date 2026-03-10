@@ -1,0 +1,132 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "tenants": "Tenants",
+    "rooms": "Rooms",
+    "payments": "Payments",
+    "cashManagement": "Cash Management",
+    "lawnEvents": "Lawn Events",
+    "reports": "Reports",
+    "settings": "Settings",
+    "logout": "Logout"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "occupiedRooms": "Occupied Rooms",
+    "vacantRooms": "Vacant Rooms",
+    "activeTenants": "Active Tenants",
+    "defaulters": "Defaulters",
+    "totalDues": "Total Dues",
+    "thisMonthCollection": "This Month Collection",
+    "search": "Search tenants...",
+    "tenantsOverview": "Tenants Overview"
+  },
+  "payment": {
+    "recordPayment": "Record Payment",
+    "selectTenant": "Select Tenant",
+    "searchTenant": "Search tenant...",
+    "amount": "Amount",
+    "type": "Transaction Type",
+    "method": "Payment Method",
+    "date": "Date",
+    "notes": "Notes",
+    "notesPlaceholder": "Additional notes...",
+    "adjustments": "Adjustments (Optional)",
+    "adjustmentType": "Adjustment Type",
+    "adjustmentAmount": "Amount",
+    "submit": "Record Payment",
+    "submitting": "Recording...",
+    "cancel": "Cancel",
+    "fullRent": "Full Rent",
+    "halfRent": "Half Rent",
+    "autoApplyToRent": "Auto-apply to rent"
+  },
+  "paymentTypes": {
+    "payment": "Payment",
+    "credit": "Apply Credit to Rent",
+    "adjustment": "Adjustment (Discount/Maintenance/Other)"
+  },
+  "paymentMethods": {
+    "cash": "Cash",
+    "upi": "UPI",
+    "bankTransfer": "Bank Transfer",
+    "cheque": "Cheque"
+  },
+  "adjustmentTypes": {
+    "none": "No Adjustment",
+    "discount": "Discount",
+    "maintenance": "Maintenance Deduction",
+    "other": "Other Adjustment",
+    "discountDesc": "One-time discount given to tenant",
+    "maintenanceDesc": "Deduct for tenant-paid maintenance expenses",
+    "otherDesc": "Any other adjustment or waiver"
+  },
+  "tenant": {
+    "name": "Name",
+    "monthlyRent": "Monthly Rent",
+    "lastPaidMonth": "Last Paid Month",
+    "creditBalance": "Credit Balance",
+    "totalDues": "Total Dues",
+    "securityDeposit": "Security Deposit",
+    "expectedRent": "Expected Rent",
+    "rooms": "Rooms",
+    "viewDetails": "View Details",
+    "hideDetails": "Hide Details",
+    "addTenant": "Add Tenant",
+    "editTenant": "Edit Tenant"
+  },
+  "room": {
+    "room": "Room",
+    "roomNumber": "Room Number",
+    "status": "Status",
+    "occupied": "Occupied",
+    "vacant": "Vacant",
+    "addRoom": "Add Room",
+    "editRoom": "Edit Room"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "edit": "Edit",
+    "delete": "Delete",
+    "view": "View",
+    "search": "Search",
+    "filter": "Filter",
+    "export": "Export",
+    "print": "Print",
+    "loading": "Loading...",
+    "noData": "No data available",
+    "error": "Error",
+    "success": "Success",
+    "confirm": "Confirm",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "custom": "Custom",
+    "yes": "Yes",
+    "no": "No"
+  },
+  "status": {
+    "paid": "Paid",
+    "partial": "Partial",
+    "overdue": "Overdue",
+    "pending": "Pending",
+    "fullyPaid": "Fully Paid",
+    "overpaid": "Overpaid"
+  },
+  "messages": {
+    "paymentRecorded": "Payment recorded successfully",
+    "paymentFailed": "Failed to record payment",
+    "selectTenantFirst": "Please select a tenant first",
+    "invalidAmount": "Please enter a valid amount",
+    "logoutSuccess": "Logged out successfully",
+    "logoutFailed": "Failed to logout"
+  },
+  "settings": {
+    "title": "Settings",
+    "language": "Language",
+    "theme": "Theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  }
+}

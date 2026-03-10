@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Menu, Bell, Home, Users, DoorOpen, CreditCard, BarChart3, Wallet, LogOut, User, Building2, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { LanguageSelector } from "@/components/language-selector";
 import {
   Sheet,
   SheetContent,
@@ -22,21 +23,23 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useState } from "react";
+import { useTranslations } from "@/hooks/use-translations";
 
 export function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
+  const { t } = useTranslations();
 
   // Navigation items
   const navItems = [
-    { href: "/", icon: Home, label: "Dashboard" },
-    { href: "/tenants", icon: Users, label: "Tenants" },
-    { href: "/rooms", icon: DoorOpen, label: "Rooms" },
-    { href: "/payments", icon: CreditCard, label: "Payments" },
-    { href: "/cash-management", icon: Wallet, label: "Cash Management" },
-    { href: "/lawn-events", icon: Building2, label: "Lawn Events" },
-    { href: "/reports", icon: BarChart3, label: "Reports" },
+    { href: "/", icon: Home, label: t("nav.dashboard") },
+    { href: "/tenants", icon: Users, label: t("nav.tenants") },
+    { href: "/rooms", icon: DoorOpen, label: t("nav.rooms") },
+    { href: "/payments", icon: CreditCard, label: t("nav.payments") },
+    { href: "/cash-management", icon: Wallet, label: t("nav.cashManagement") },
+    { href: "/lawn-events", icon: Building2, label: t("nav.lawnEvents") },
+    { href: "/reports", icon: BarChart3, label: t("nav.reports") },
   ];
 
   const handleLogout = async () => {
@@ -47,15 +50,15 @@ export function Header() {
       });
 
       if (response.ok) {
-        toast.success("Logged out successfully");
+        toast.success(t("messages.logoutSuccess"));
         // Use window.location.href for hard navigation to ensure cookie is cleared
         window.location.href = "/login";
       } else {
-        toast.error("An error occurred");
+        toast.error(t("messages.logoutFailed"));
       }
     } catch (error) {
       console.error("Logout error:", error);
-      toast.error("An error occurred during logout");
+      toast.error(t("messages.logoutFailed"));
     } finally {
       setLoggingOut(false);
     }
@@ -135,6 +138,8 @@ export function Header() {
             <span className="sr-only">Notifications</span>
           </Button>
 
+          <LanguageSelector />
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon">
@@ -148,12 +153,12 @@ export function Header() {
               <DropdownMenuItem asChild>
                 <Link href="/settings" className="cursor-pointer">
                   <Settings className="mr-2 h-4 w-4" />
-                  Settings
+                  {t("nav.settings")}
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={handleLogout} disabled={loggingOut}>
                 <LogOut className="mr-2 h-4 w-4" />
-                {loggingOut ? "Logging out..." : "Logout"}
+                {loggingOut ? t("messages.logoutSuccess") + "..." : t("nav.logout")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
