@@ -42,6 +42,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "@/hooks/use-translations";
+import { NoTranslate } from "@/components/no-translate";
 
 interface Room {
   id: string;
@@ -282,11 +283,13 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
                     className="w-full justify-between"
                     disabled={loading || submitting}
                   >
-                    {formData.tenantId
-                      ? tenants.find((tenant) => tenant.id === formData.tenantId)?.name
-                      : loading
-                      ? t("common.loading")
-                      : t("payment.searchTenant")}
+                    {formData.tenantId ? (
+                      <NoTranslate>{tenants.find((tenant) => tenant.id === formData.tenantId)?.name}</NoTranslate>
+                    ) : loading ? (
+                      t("common.loading")
+                    ) : (
+                      t("payment.searchTenant")
+                    )}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
@@ -311,7 +314,7 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
                                 formData.tenantId === tenant.id ? "opacity-100" : "opacity-0"
                               )}
                             />
-                            {tenant.name}
+                            <NoTranslate>{tenant.name}</NoTranslate>
                           </CommandItem>
                         ))}
                       </CommandGroup>

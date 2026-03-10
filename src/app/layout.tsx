@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Header } from "@/components/layout/header";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { Toaster } from "@/components/ui/sonner";
+import { LocaleManager } from "@/components/locale-manager";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -42,6 +43,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased font-sans">
+        <LocaleManager />
         <div className="relative min-h-screen flex flex-col">
           <Header />
           <main className="flex-1 pb-20 md:pb-0">
