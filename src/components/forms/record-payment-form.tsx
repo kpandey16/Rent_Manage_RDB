@@ -539,35 +539,37 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
 
                 {showAdjustments && (
                   <div className="p-4 pt-0 space-y-3 border-t">
-                    {/* Adjustment Type */}
+                    {/* Adjustment Type - Quick Selection Buttons */}
                     <div className="grid gap-2">
-                      <Label htmlFor="adjustmentType" className="text-sm">Adjustment Type</Label>
-                      <Select
-                        value={formData.adjustmentType || "none"}
-                        onValueChange={(value) => {
-                          setFormData((prev) => ({
-                            ...prev,
-                            adjustmentType: value,
-                            adjustmentAmount: value === "none" ? 0 : prev.adjustmentAmount,
-                            // Update legacy fields for backend compatibility
-                            discount: value === "discount" ? prev.adjustmentAmount || 0 : 0,
-                            maintenanceDeduction: value === "maintenance" ? prev.adjustmentAmount || 0 : 0,
-                            otherAdjustment: value === "other" ? prev.adjustmentAmount || 0 : 0,
-                          }));
-                        }}
-                        disabled={submitting}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {adjustmentTypes.map((type) => (
-                            <SelectItem key={type.value} value={type.value}>
-                              {type.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Label className="text-sm">Adjustment Type</Label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {adjustmentTypes.map((type) => (
+                          <button
+                            key={type.value}
+                            type="button"
+                            onClick={() => {
+                              setFormData((prev) => ({
+                                ...prev,
+                                adjustmentType: type.value,
+                                adjustmentAmount: type.value === "none" ? 0 : prev.adjustmentAmount,
+                                // Update legacy fields for backend compatibility
+                                discount: type.value === "discount" ? prev.adjustmentAmount || 0 : 0,
+                                maintenanceDeduction: type.value === "maintenance" ? prev.adjustmentAmount || 0 : 0,
+                                otherAdjustment: type.value === "other" ? prev.adjustmentAmount || 0 : 0,
+                              }));
+                            }}
+                            disabled={submitting}
+                            className={cn(
+                              "px-3 py-2 text-sm font-medium rounded-md border transition-all",
+                              formData.adjustmentType === type.value
+                                ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                                : "bg-background hover:bg-muted border-input"
+                            )}
+                          >
+                            {type.label}
+                          </button>
+                        ))}
+                      </div>
                       {formData.adjustmentType && formData.adjustmentType !== "none" && (
                         <p className="text-xs text-muted-foreground">
                           {adjustmentTypes.find(t => t.value === formData.adjustmentType)?.description}
