@@ -120,6 +120,9 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [showAdjustments, setShowAdjustments] = useState(false);
   const [showTenantDetails, setShowTenantDetails] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [paymentResult, setPaymentResult] = useState<any>(null);
   const [formData, setFormData] = useState<PaymentFormData>({
     tenantId: "",
     amount: 0,
@@ -203,8 +206,14 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Show confirmation dialog instead of directly submitting
+    setShowConfirmation(true);
+  };
+
+  const handleConfirmPayment = async () => {
     try {
       setSubmitting(true);
+      setShowConfirmation(false);
       const response = await fetch("/api/transactions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -217,31 +226,37 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
       }
 
       const data = await response.json();
-      toast.success(data.message || t("messages.paymentRecorded"));
+      setPaymentResult(data);
+      setShowSuccess(true);
       onSubmit?.(formData);
-      setOpen(false);
-      // Reset form
-      setFormData({
-        tenantId: "",
-        amount: 0,
-        type: "payment",
-        method: "cash",
-        date: format(new Date(), "yyyy-MM-dd"),
-        notes: "",
-        adjustmentType: "none",
-        adjustmentAmount: 0,
-        discount: 0,
-        maintenanceDeduction: 0,
-        otherAdjustment: 0,
-        autoApplyToRent: true,
-      });
-      setShowAdjustments(false);
     } catch (error) {
       console.error("Error recording transaction:", error);
       toast.error(error instanceof Error ? error.message : t("messages.paymentFailed"));
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleSuccessClose = () => {
+    setShowSuccess(false);
+    setOpen(false);
+    // Reset form
+    setFormData({
+      tenantId: "",
+      amount: 0,
+      type: "payment",
+      method: "cash",
+      date: format(new Date(), "yyyy-MM-dd"),
+      notes: "",
+      adjustmentType: "none",
+      adjustmentAmount: 0,
+      discount: 0,
+      maintenanceDeduction: 0,
+      otherAdjustment: 0,
+      autoApplyToRent: true,
+    });
+    setShowAdjustments(false);
+    setPaymentResult(null);
   };
 
   const handleQuickFill = () => {
@@ -252,8 +267,18 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
     }
   };
 
+  const handleDialogChange = (isOpen: boolean) => {
+    setOpen(isOpen);
+    if (!isOpen) {
+      // Reset all states when dialog closes
+      setShowConfirmation(false);
+      setShowSuccess(false);
+      setPaymentResult(null);
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleDialogChange}>
       <DialogTrigger asChild>
         {trigger || (
           <Button size="sm">
@@ -837,6 +862,176 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
           </DialogFooter>
         </form>
       </DialogContent>
+
+      {/* Confirmation Dialog */}
+      <Dialog open={showConfirmation} onOpenChange={setShowConfirmation}>
+        <DialogContent className="sm:max-w-[450px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              ⚠️ Confirm Payment
+            </DialogTitle>
+            <DialogDescription>
+              Please review the payment details before confirming
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-4">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Tenant:</span>
+              <span className="font-medium">{selectedTenant?.name}</span>
+            </div>
+            {selectedTenant?.rooms && selectedTenant.rooms.length > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Room(s):</span>
+                <span className="font-medium">
+                  {selectedTenant.rooms.map(r => r.code).join(", ")}
+                </span>
+              </div>
+            )}
+            {selectedTenant?.nextUnpaidPeriod && formData.type === "payment" && (
+              <div className="flex justify-between text-sm bg-blue-50 dark:bg-blue-950 p-2 rounded">
+                <span className="text-muted-foreground">📅 Paying for:</span>
+                <span className="font-semibold text-blue-700 dark:text-blue-300">
+                  {selectedTenant.nextUnpaidPeriod}
+                </span>
+              </div>
+            )}
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Amount:</span>
+              <span className="font-semibold text-green-600">₹{formData.amount.toLocaleString("en-IN")}</span>
+            </div>
+            {formData.adjustmentType && formData.adjustmentType !== "none" && formData.adjustmentAmount && formData.adjustmentAmount > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">
+                  {adjustmentTypes.find(t => t.value === formData.adjustmentType)?.label}:
+                </span>
+                <span className="font-semibold text-orange-600">
+                  +₹{formData.adjustmentAmount.toLocaleString("en-IN")}
+                </span>
+              </div>
+            )}
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Payment Date:</span>
+              <span className="font-medium">{format(new Date(formData.date), "dd MMM yyyy")}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Method:</span>
+              <span className="font-medium capitalize">
+                {paymentMethods.find(m => m.value === formData.method)?.label}
+              </span>
+            </div>
+            {formData.notes && (
+              <div className="text-sm pt-2 border-t">
+                <span className="text-muted-foreground">Notes:</span>
+                <p className="font-medium mt-1">{formData.notes}</p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowConfirmation(false)}
+              disabled={submitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleConfirmPayment}
+              disabled={submitting}
+            >
+              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {submitting ? "Processing..." : "✅ Confirm Payment"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Success Dialog */}
+      <Dialog open={showSuccess} onOpenChange={setShowSuccess}>
+        <DialogContent className="sm:max-w-[450px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-green-600">
+              ✅ Payment Successful!
+            </DialogTitle>
+            <DialogDescription>
+              Payment has been recorded successfully
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-4">
+            {paymentResult?.transactionId && (
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Transaction ID:</span>
+                <span className="font-mono text-xs">{paymentResult.transactionId.slice(0, 8)}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Tenant:</span>
+              <span className="font-medium">{selectedTenant?.name}</span>
+            </div>
+            {selectedTenant?.rooms && selectedTenant.rooms.length > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Room(s):</span>
+                <span className="font-medium">
+                  {selectedTenant.rooms.map(r => r.code).join(", ")}
+                </span>
+              </div>
+            )}
+            {paymentResult?.appliedPeriods && paymentResult.appliedPeriods.length > 0 && (
+              <div className="bg-green-50 dark:bg-green-950 p-3 rounded space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">📅 Paid Period(s):</span>
+                  <span className="font-semibold text-green-700 dark:text-green-300">
+                    {paymentResult.appliedPeriods.length === 1
+                      ? formatPeriodDisplay(paymentResult.appliedPeriods[0])
+                      : `${formatPeriodDisplay(paymentResult.appliedPeriods[0])} to ${formatPeriodDisplay(paymentResult.appliedPeriods[paymentResult.appliedPeriods.length - 1])}`
+                    }
+                  </span>
+                </div>
+                <div className="text-xs text-center text-green-700 dark:text-green-300 font-medium">
+                  ✅ {paymentResult.appliedPeriods.length === 1
+                    ? `${formatPeriodDisplay(paymentResult.appliedPeriods[0])} rent fully paid!`
+                    : `${paymentResult.appliedPeriods.length} months rent fully paid!`
+                  }
+                </div>
+              </div>
+            )}
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Amount:</span>
+              <span className="font-semibold text-green-600">₹{formData.amount.toLocaleString("en-IN")}</span>
+            </div>
+            {paymentResult?.creditAmount !== undefined && paymentResult.creditAmount > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Remaining Credit:</span>
+                <span className="font-semibold text-blue-600">
+                  ₹{paymentResult.creditAmount.toLocaleString("en-IN")}
+                </span>
+              </div>
+            )}
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Payment Date:</span>
+              <span className="font-medium">{format(new Date(formData.date), "dd MMM yyyy")}</span>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              onClick={handleSuccessClose}
+              className="w-full"
+            >
+              OK
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
+}
+
+// Helper function to format period (YYYY-MM) to readable format (MMM-YY)
+function formatPeriodDisplay(period: string): string {
+  const [year, month] = period.split("-");
+  const date = new Date(parseInt(year), parseInt(month) - 1);
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${monthNames[date.getMonth()]}-${year.substring(2)}`;
 }
