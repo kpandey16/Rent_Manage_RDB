@@ -14,11 +14,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, Phone, Mail, Calendar, IndianRupee, DoorOpen, Plus, Loader2, CreditCard } from "lucide-react";
+import { ArrowLeft, Phone, Mail, Calendar, IndianRupee, DoorOpen, Plus, Loader2, CreditCard, ChevronDown, ChevronRight, CheckCircle2, Download, RotateCcw } from "lucide-react";
 import { AllocateRoomForm } from "@/components/forms/allocate-room-form";
 import { EditTenantForm } from "@/components/forms/edit-tenant-form";
 import { RecordPaymentForm } from "@/components/forms/record-payment-form";
 import { SetOpeningBalanceDialog } from "@/components/tenant/set-opening-balance-dialog";
+import { RollbackPaymentDialog } from "@/components/rollback/rollback-payment-dialog";
+import { DownloadReceiptButton } from "@/components/receipt/download-receipt-button";
 import { toast } from "sonner";
 
 interface Room {
@@ -76,6 +78,9 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasOpeningBalance, setHasOpeningBalance] = useState(false);
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const [rollbackDialogOpen, setRollbackDialogOpen] = useState(false);
+  const [selectedLedgerId, setSelectedLedgerId] = useState<string | null>(null);
 
   const fetchData = async () => {
     try {
@@ -122,6 +127,49 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
   const handleRoomAllocated = () => {
     // Refresh tenant data after room allocation
     window.location.reload();
+  };
+
+  const toggleCardExpansion = (transactionId: string) => {
+    setExpandedCards(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(transactionId)) {
+        newSet.delete(transactionId);
+      } else {
+        newSet.add(transactionId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleRollbackClick = (e: React.MouseEvent, ledgerId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSelectedLedgerId(ledgerId);
+    setRollbackDialogOpen(true);
+  };
+
+  const handleRollbackSuccess = () => {
+    fetchData();
+    setSelectedLedgerId(null);
+  };
+
+  const canShowRollback = (transaction: Transaction) => {
+    if (transaction.type === "payment") {
+      return transaction.payment_method === "cash" || transaction.payment_method === "upi";
+    }
+    if (transaction.type === "adjustment") {
+      return true;
+    }
+    return false;
+  };
+
+  // Format date as DD-MMM-YY
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = date.toLocaleDateString('en-US', { month: 'short' });
+    const year = String(date.getFullYear()).slice(-2);
+    return `${day}-${month}-${year}`;
   };
 
   if (loading) {
@@ -307,57 +355,165 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
               {/* Mobile View */}
               <div className="md:hidden space-y-3">
                 {transactions.map((transaction) => {
+                  const isExpanded = expandedCards.has(transaction.id);
                   const amount = Number(transaction.amount);
                   const totalAmount = transaction.totalAmount || amount;
                   const isPositive = totalAmount >= 0;
                   const hasAdjustments = transaction.adjustments && transaction.adjustments.length > 0;
+                  const isFullyApplied = transaction.creditRemaining === 0;
+                  const hasCredit = transaction.creditRemaining !== null && transaction.creditRemaining !== undefined && transaction.creditRemaining > 0;
 
                   return (
-                    <div key={transaction.id} className="p-3 rounded-lg bg-muted/50">
-                      <div className="flex items-center justify-between mb-2">
-                        <div>
-                          <span className={`text-lg font-semibold ${isPositive ? 'text-green-600' : 'text-orange-600'}`}>
-                            {isPositive ? '+' : ''}₹{Math.abs(amount).toLocaleString("en-IN")}
-                          </span>
-                          {hasAdjustments && (
-                            <div className="text-xs text-muted-foreground mt-1">
-                              {transaction.adjustments!.map((adj, idx) => (
-                                <div key={idx}>
-                                  + ₹{adj.amount.toLocaleString("en-IN")} {adj.type}
-                                </div>
-                              ))}
-                              <div className="font-medium mt-0.5">
-                                Total: ₹{totalAmount.toLocaleString("en-IN")}
-                              </div>
+                    <Card key={transaction.id} className="hover:bg-muted/50 transition-colors">
+                      {/* Collapsed View - Always Visible */}
+                      <div
+                        className="p-3 cursor-pointer"
+                        onClick={() => toggleCardExpansion(transaction.id)}
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          {/* Left: Basic info */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              {isFullyApplied ? (
+                                <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" />
+                              ) : (
+                                <IndianRupee className="h-4 w-4 text-green-600 flex-shrink-0" />
+                              )}
+                              <span className={`text-lg font-semibold ${isPositive ? 'text-green-600' : 'text-orange-600'}`}>
+                                {isPositive ? '+' : ''}₹{Math.abs(amount).toLocaleString("en-IN")}
+                              </span>
+                              <Badge variant="outline" className="capitalize text-xs">{transaction.type}</Badge>
                             </div>
-                          )}
+                            <div className="text-sm text-muted-foreground">
+                              <span>{formatDate(transaction.transaction_date)}</span>
+                              {transaction.appliedTo && (
+                                <>
+                                  <span className="mx-1">•</span>
+                                  <span className="truncate">Applied to: {transaction.appliedTo}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Right: Expand icon */}
+                          <div>
+                            {isExpanded ? (
+                              <ChevronDown className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                            ) : (
+                              <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                            )}
+                          </div>
                         </div>
-                        <Badge variant="outline" className="capitalize">{transaction.type}</Badge>
                       </div>
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(transaction.transaction_date).toLocaleDateString("en-IN")}
-                        {transaction.payment_method && ` • ${transaction.payment_method}`}
-                        {transaction.collectedBy && ` • Collected by: ${transaction.collectedBy}`}
-                      </p>
-                      {transaction.appliedTo && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Applied to: {transaction.appliedTo}
-                        </p>
+
+                      {/* Expanded View - Details */}
+                      {isExpanded && (
+                        <div className="px-3 pb-3 pt-0 space-y-3 border-t">
+                          <div className="pt-3 space-y-2">
+                            {/* Collected by */}
+                            {transaction.collectedBy && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <span className="text-muted-foreground">Collected by:</span>
+                                <span className="font-medium">{transaction.collectedBy}</span>
+                              </div>
+                            )}
+
+                            {/* Payment method */}
+                            {transaction.payment_method && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <span className="text-muted-foreground">Payment method:</span>
+                                <span className="font-medium capitalize">{transaction.payment_method}</span>
+                              </div>
+                            )}
+
+                            {/* Adjustments */}
+                            {hasAdjustments && (
+                              <div className="text-sm space-y-1">
+                                <div className="font-medium text-muted-foreground">Adjustments:</div>
+                                <div className="pl-3 space-y-1">
+                                  {transaction.adjustments!.map((adj, idx) => (
+                                    <div key={idx} className="flex justify-between">
+                                      <span className="capitalize">{adj.type}:</span>
+                                      <span className="font-medium">+₹{adj.amount.toLocaleString("en-IN")}</span>
+                                    </div>
+                                  ))}
+                                  <div className="flex justify-between pt-1 border-t">
+                                    <span className="font-medium">Total:</span>
+                                    <span className="font-medium">₹{totalAmount.toLocaleString("en-IN")}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Breakdown */}
+                            <div className="text-sm space-y-1">
+                              <div className="font-medium text-muted-foreground">Breakdown:</div>
+                              {transaction.appliedTo ? (
+                                <div className="pl-3">
+                                  <div className="flex justify-between">
+                                    <span>Applied to rent:</span>
+                                    <span className="font-medium">₹{Math.abs(amount).toLocaleString("en-IN")}</span>
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">({transaction.appliedTo})</div>
+                                </div>
+                              ) : (
+                                <div className="pl-3 text-muted-foreground italic">
+                                  Credit added only (no rent periods paid)
+                                </div>
+                              )}
+
+                              {hasCredit && transaction.creditRemaining && (
+                                <div className="pl-3 flex justify-between pt-1 border-t">
+                                  <span className="text-muted-foreground">→ Remaining credit:</span>
+                                  <span className="font-medium text-green-600">
+                                    ₹{transaction.creditRemaining.toLocaleString("en-IN")}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Notes */}
+                            {transaction.description && (
+                              <div className="text-sm pt-2 border-t">
+                                <div className="text-muted-foreground mb-1">📝 Note:</div>
+                                <div className="text-foreground">{transaction.description}</div>
+                              </div>
+                            )}
+
+                            {/* Action buttons */}
+                            <div className="flex items-center gap-2 pt-2 flex-wrap">
+                              {/* Download Receipt button */}
+                              {(transaction.type === "payment" || transaction.type === "credit") && (
+                                <div onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+                                  <DownloadReceiptButton
+                                    transactionId={transaction.id}
+                                    variant="outline"
+                                    size="sm"
+                                  />
+                                </div>
+                              )}
+
+                              {/* Rollback button */}
+                              {canShowRollback(transaction) && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleRollbackClick(e, transaction.id);
+                                  }}
+                                >
+                                  <RotateCcw className="h-4 w-4 mr-1" />
+                                  Rollback
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
                       )}
-                      {transaction.creditRemaining !== null && transaction.creditRemaining !== undefined && (
-                        <p className="text-xs mt-1">
-                          <span className="text-muted-foreground">Credit Balance: </span>
-                          <span className={`font-medium ${transaction.creditRemaining >= 0 ? 'text-green-600' : 'text-destructive'}`}>
-                            {transaction.creditRemaining >= 0 ? '+' : '-'}₹{Math.abs(transaction.creditRemaining).toLocaleString("en-IN")}
-                          </span>
-                        </p>
-                      )}
-                      {transaction.description && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Note: {transaction.description}
-                        </p>
-                      )}
-                    </div>
+                    </Card>
                   );
                 })}
               </div>
@@ -432,6 +588,16 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
           )}
         </CardContent>
       </Card>
+
+      {/* Rollback Dialog */}
+      {selectedLedgerId && (
+        <RollbackPaymentDialog
+          open={rollbackDialogOpen}
+          onOpenChange={setRollbackDialogOpen}
+          ledgerId={selectedLedgerId}
+          onSuccess={handleRollbackSuccess}
+        />
+      )}
 
     </div>
   );
