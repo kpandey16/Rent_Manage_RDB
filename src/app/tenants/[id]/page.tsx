@@ -18,6 +18,7 @@ import { ArrowLeft, Phone, Mail, Calendar, IndianRupee, DoorOpen, Plus, Loader2,
 import { AllocateRoomForm } from "@/components/forms/allocate-room-form";
 import { EditTenantForm } from "@/components/forms/edit-tenant-form";
 import { RecordPaymentForm } from "@/components/forms/record-payment-form";
+import { formatDate, formatMonthYear } from "@/lib/date-utils";
 import { SetOpeningBalanceDialog } from "@/components/tenant/set-opening-balance-dialog";
 import { RollbackPaymentDialog } from "@/components/rollback/rollback-payment-dialog";
 import { DownloadReceiptButton } from "@/components/receipt/download-receipt-button";
@@ -163,15 +164,6 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
     return false;
   };
 
-  // Format date as DD-MMM-YY
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = date.toLocaleDateString('en-US', { month: 'short' });
-    const year = String(date.getFullYear()).slice(-2);
-    return `${day}-${month}-${year}`;
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -204,7 +196,7 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
         </Link>
         <div className="flex-1">
           <h1 className="text-xl font-semibold">{tenant.name}</h1>
-          <p className="text-sm text-muted-foreground">Tenant since {new Date(tenant.created_at).toLocaleDateString("en-IN", { month: "short", year: "numeric" })}</p>
+          <p className="text-sm text-muted-foreground">Tenant since {formatMonthYear(tenant.created_at)}</p>
         </div>
         <EditTenantForm
           tenantId={tenant.id}
@@ -303,7 +295,7 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
                     {room.code} {room.name && `- ${room.name}`}
                   </Link>
                   <p className="text-sm text-muted-foreground">
-                    Since {new Date(room.moveInDate).toLocaleDateString("en-IN")}
+                    Since {formatDate(room.moveInDate)}
                   </p>
                 </div>
                 <Badge>₹{Number(room.currentRent).toLocaleString("en-IN")}/mo</Badge>
@@ -542,7 +534,7 @@ export default function TenantDetailPage({ params }: { params: Promise<{ id: str
 
                       return (
                         <TableRow key={transaction.id}>
-                          <TableCell>{new Date(transaction.transaction_date).toLocaleDateString("en-IN")}</TableCell>
+                          <TableCell>{formatDate(transaction.transaction_date)}</TableCell>
                           <TableCell className={`font-medium ${isPositive ? 'text-green-600' : 'text-orange-600'}`}>
                             <div>
                               <div>{isPositive ? '+' : ''}₹{Math.abs(amount).toLocaleString("en-IN")}</div>
