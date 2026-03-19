@@ -158,10 +158,16 @@ async function handlePayment(
   }
 
   // Create ledger entry for the payment (shares same document_id as adjustments)
+  // Enhance description with credit usage information for transparency
+  const baseDescription = notes || "Payment received";
+  const descriptionWithCredit = existingCredit > 0
+    ? `${baseDescription}. ₹${existingCredit.toLocaleString("en-IN")} credit was used to pay this rent.`
+    : baseDescription;
+
   await db.execute({
     sql: `INSERT INTO tenant_ledger (id, tenant_id, transaction_date, type, amount, payment_method, description, document_id, created_by, created_at)
           VALUES (?, ?, ?, 'payment', ?, ?, ?, ?, ?, ?)`,
-    args: [ledgerId, tenantId, transactionDate, amount, method, notes || "Payment received", documentId, userId, now],
+    args: [ledgerId, tenantId, transactionDate, amount, method, descriptionWithCredit, documentId, userId, now],
   });
 
   // Calculate total available amount (existing credit + new payment + adjustments)
