@@ -11,6 +11,7 @@ import { RecordPaymentForm } from "@/components/forms/record-payment-form";
 import { RollbackPaymentDialog } from "@/components/rollback/rollback-payment-dialog";
 import { RollbackHistoryTable } from "@/components/rollback/rollback-history-table";
 import { DownloadReceiptButton } from "@/components/receipt/download-receipt-button";
+import { PAYMENT_METHOD_COLORS } from "@/lib/constants";
 import { toast } from "sonner";
 
 interface Transaction {
@@ -176,9 +177,12 @@ export default function PaymentsPage() {
                               {transaction.payment_method && (
                                 <>
                                   <span>•</span>
-                                  <span className="capitalize whitespace-nowrap flex items-center gap-1">
-                                    {transaction.payment_method === 'cash' ? '💵' : '📱'} {transaction.payment_method}
-                                  </span>
+                                  <Badge
+                                    variant="outline"
+                                    className={`capitalize ${PAYMENT_METHOD_COLORS[transaction.payment_method as keyof typeof PAYMENT_METHOD_COLORS] || 'bg-gray-100 text-gray-700'}`}
+                                  >
+                                    {transaction.payment_method}
+                                  </Badge>
                                 </>
                               )}
                             </div>
