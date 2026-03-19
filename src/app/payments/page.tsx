@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowDownLeft, ChevronRight, ChevronDown, Loader2, RotateCcw, CheckCircle2 } from "lucide-react";
+import { ChevronRight, ChevronDown, Loader2, RotateCcw } from "lucide-react";
 import { RecordPaymentForm } from "@/components/forms/record-payment-form";
 import { RollbackPaymentDialog } from "@/components/rollback/rollback-payment-dialog";
 import { RollbackHistoryTable } from "@/components/rollback/rollback-history-table";
@@ -36,13 +36,13 @@ export default function PaymentsPage() {
   const [selectedLedgerId, setSelectedLedgerId] = useState<string | null>(null);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
 
-  // Format date as DD-MMM-YY
+  // Format date as DD MMM YYYY (single line, no hyphens)
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    const day = String(date.getDate()).padStart(2, '0');
+    const day = date.getDate();
     const month = date.toLocaleDateString('en-US', { month: 'short' });
-    const year = String(date.getFullYear()).slice(-2);
-    return `${day}-${month}-${year}`;
+    const year = date.getFullYear();
+    return `${day} ${month} ${year}`;
   };
 
   useEffect(() => {
@@ -143,67 +143,58 @@ export default function PaymentsPage() {
                     <CardContent className="p-0">
                       {/* Collapsed View - Always Visible */}
                       <div
-                        className="p-4 cursor-pointer"
+                        className="p-3.5 cursor-pointer"
                         onClick={() => toggleCardExpansion(transaction.id)}
                       >
-                        <div className="flex items-start justify-between gap-4">
-                          {/* Left: Tenant name and basic info */}
+                        <div className="flex items-center justify-between gap-3">
+                          {/* Left: Tenant name and info */}
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              {isFullyApplied ? (
-                                <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" />
-                              ) : (
-                                <ArrowDownLeft className="h-4 w-4 text-green-600 flex-shrink-0" />
-                              )}
-                              <span className="font-medium truncate">{transaction.tenant_name}</span>
+                            {/* Tenant name + Amount on same line */}
+                            <div className="flex items-baseline justify-between gap-3 mb-1">
+                              <span className="font-medium text-base truncate">{transaction.tenant_name}</span>
+                              <div className="flex items-center gap-1.5 flex-shrink-0">
+                                <span className={`text-lg font-semibold whitespace-nowrap ${isPositive ? 'text-green-600' : 'text-orange-600'}`}>
+                                  {isPositive ? '+' : ''}₹{Math.abs(amount).toLocaleString("en-IN")}
+                                </span>
+                                {isExpanded ? (
+                                  <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                                ) : (
+                                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                                )}
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <span>{formatDate(transaction.transaction_date)}</span>
+
+                            {/* Date • Period • Payment Method */}
+                            <div className="flex items-center gap-1.5 text-sm text-muted-foreground flex-wrap">
+                              <span className="whitespace-nowrap">{formatDate(transaction.transaction_date)}</span>
                               {transaction.appliedTo && (
                                 <>
                                   <span>•</span>
-                                  <span className="truncate">Applied to: {transaction.appliedTo}</span>
+                                  <span className="whitespace-nowrap">{transaction.appliedTo}</span>
+                                </>
+                              )}
+                              {transaction.payment_method && (
+                                <>
+                                  <span>•</span>
+                                  <span className="capitalize whitespace-nowrap flex items-center gap-1">
+                                    {transaction.payment_method === 'cash' ? '💵' : '📱'} {transaction.payment_method}
+                                  </span>
                                 </>
                               )}
                             </div>
-                          </div>
-
-                          {/* Right: Amount, badge, and expand icon */}
-                          <div className="flex items-start gap-2">
-                            <div className="text-right">
-                              <div className={`text-lg font-semibold whitespace-nowrap ${isPositive ? 'text-green-600' : 'text-orange-600'}`}>
-                                {isPositive ? '+' : ''}₹{Math.abs(amount).toLocaleString("en-IN")}
-                              </div>
-                              <Badge variant="outline" className="text-xs capitalize mt-1">
-                                {transaction.type}
-                              </Badge>
-                            </div>
-                            {isExpanded ? (
-                              <ChevronDown className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-1" />
-                            ) : (
-                              <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-1" />
-                            )}
                           </div>
                         </div>
                       </div>
 
                       {/* Expanded View - Details */}
                       {isExpanded && (
-                        <div className="px-4 pb-4 pt-0 space-y-3 border-t">
+                        <div className="px-3.5 pb-3.5 pt-0 space-y-3 border-t">
                           <div className="pt-3 space-y-2">
                             {/* Collected by */}
                             {transaction.collectedBy && (
                               <div className="flex items-center gap-2 text-sm">
                                 <span className="text-muted-foreground">Collected by:</span>
                                 <span className="font-medium">{transaction.collectedBy}</span>
-                              </div>
-                            )}
-
-                            {/* Payment method */}
-                            {transaction.payment_method && (
-                              <div className="flex items-center gap-2 text-sm">
-                                <span className="text-muted-foreground">Payment method:</span>
-                                <span className="font-medium capitalize">{transaction.payment_method}</span>
                               </div>
                             )}
 
