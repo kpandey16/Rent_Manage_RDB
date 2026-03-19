@@ -41,6 +41,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "@/hooks/use-translations";
+import { NoTranslate } from "@/components/no-translate";
 
 interface Room {
   id: string;
@@ -109,6 +111,7 @@ export interface PaymentFormData {
 }
 
 export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: RecordPaymentFormProps) {
+  const { t } = useTranslations();
   const [open, setOpen] = useState(false);
   const [tenantComboboxOpen, setTenantComboboxOpen] = useState(false);
   const [tenants, setTenants] = useState<Tenant[]>([]);
@@ -117,6 +120,9 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [showAdjustments, setShowAdjustments] = useState(false);
   const [showTenantDetails, setShowTenantDetails] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [paymentResult, setPaymentResult] = useState<any>(null);
   const [formData, setFormData] = useState<PaymentFormData>({
     tenantId: "",
     amount: 0,
@@ -200,8 +206,14 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Show confirmation dialog instead of directly submitting
+    setShowConfirmation(true);
+  };
+
+  const handleConfirmPayment = async () => {
     try {
       setSubmitting(true);
+      setShowConfirmation(false);
       const response = await fetch("/api/transactions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -214,29 +226,37 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
       }
 
       const data = await response.json();
-      toast.success(data.message || "Transaction recorded successfully");
+      setPaymentResult(data);
+      setShowSuccess(true);
       onSubmit?.(formData);
-      setOpen(false);
-      // Reset form
-      setFormData({
-        tenantId: "",
-        amount: 0,
-        type: "payment",
-        method: "cash",
-        date: format(new Date(), "yyyy-MM-dd"),
-        notes: "",
-        discount: 0,
-        maintenanceDeduction: 0,
-        otherAdjustment: 0,
-        autoApplyToRent: true,
-      });
-      setShowAdjustments(false);
     } catch (error) {
       console.error("Error recording transaction:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to record transaction");
+      toast.error(error instanceof Error ? error.message : t("messages.paymentFailed"));
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleSuccessClose = () => {
+    setShowSuccess(false);
+    setOpen(false);
+    // Reset form
+    setFormData({
+      tenantId: "",
+      amount: 0,
+      type: "payment",
+      method: "cash",
+      date: format(new Date(), "yyyy-MM-dd"),
+      notes: "",
+      adjustmentType: "none",
+      adjustmentAmount: 0,
+      discount: 0,
+      maintenanceDeduction: 0,
+      otherAdjustment: 0,
+      autoApplyToRent: true,
+    });
+    setShowAdjustments(false);
+    setPaymentResult(null);
   };
 
   const handleQuickFill = () => {
@@ -247,19 +267,29 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
     }
   };
 
+  const handleDialogChange = (isOpen: boolean) => {
+    setOpen(isOpen);
+    if (!isOpen) {
+      // Reset all states when dialog closes
+      setShowConfirmation(false);
+      setShowSuccess(false);
+      setPaymentResult(null);
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleDialogChange}>
       <DialogTrigger asChild>
         {trigger || (
           <Button size="sm">
             <Plus className="h-4 w-4 mr-1" />
-            Record Payment
+            {t("payment.recordPayment")}
           </Button>
         )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Record Payment</DialogTitle>
+          <DialogTitle>{t("payment.recordPayment")}</DialogTitle>
           <DialogDescription>
             Record a new payment from a tenant. Fill in the details below.
           </DialogDescription>
@@ -268,7 +298,7 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
           <div className="grid gap-4 py-4">
             {/* Tenant Selection */}
             <div className="grid gap-2">
-              <Label htmlFor="tenant">Tenant *</Label>
+              <Label htmlFor="tenant">{t("payment.selectTenant")} *</Label>
               <Popover open={tenantComboboxOpen} onOpenChange={setTenantComboboxOpen}>
                 <PopoverTrigger asChild>
                   <Button
@@ -278,19 +308,21 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
                     className="w-full justify-between"
                     disabled={loading || submitting}
                   >
-                    {formData.tenantId
-                      ? tenants.find((tenant) => tenant.id === formData.tenantId)?.name
-                      : loading
-                      ? "Loading tenants..."
-                      : "Select tenant..."}
+                    {formData.tenantId ? (
+                      <NoTranslate>{tenants.find((tenant) => tenant.id === formData.tenantId)?.name}</NoTranslate>
+                    ) : loading ? (
+                      t("common.loading")
+                    ) : (
+                      t("payment.searchTenant")
+                    )}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[400px] p-0">
                   <Command>
-                    <CommandInput placeholder="Search tenant..." />
+                    <CommandInput placeholder={t("payment.searchTenant")} />
                     <CommandList>
-                      <CommandEmpty>No tenant found.</CommandEmpty>
+                      <CommandEmpty>{t("payment.noTenantFound")}</CommandEmpty>
                       <CommandGroup>
                         {tenants.map((tenant) => (
                           <CommandItem
@@ -307,7 +339,7 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
                                 formData.tenantId === tenant.id ? "opacity-100" : "opacity-0"
                               )}
                             />
-                            {tenant.name}
+                            <NoTranslate>{tenant.name}</NoTranslate>
                           </CommandItem>
                         ))}
                       </CommandGroup>
@@ -433,7 +465,7 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
 
             {/* Amount */}
             <div className="grid gap-2">
-              <Label htmlFor="amount">Amount *</Label>
+              <Label htmlFor="amount">{t("payment.amount")} *</Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₹</span>
                 <Input
@@ -463,7 +495,7 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
                       setFormData((prev) => ({ ...prev, amount: expectedTotal }));
                     }}
                   >
-                    Full Rent
+                    {t("payment.fullRent")}
                   </Button>
                   <Button
                     type="button"
@@ -475,7 +507,7 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
                       setFormData((prev) => ({ ...prev, amount: Math.floor(expectedTotal / 2) }));
                     }}
                   >
-                    Half Rent
+                    {t("payment.halfRent")}
                   </Button>
                   <Button
                     type="button"
@@ -672,7 +704,7 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
 
             {/* Type */}
             <div className="grid gap-2">
-              <Label htmlFor="type">Transaction Type *</Label>
+              <Label htmlFor="type">{t("payment.type")} *</Label>
               <Select
                 value={formData.type}
                 onValueChange={(value) => setFormData((prev) => ({ ...prev, type: value }))}
@@ -684,19 +716,19 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
                 <SelectContent>
                   {paymentTypes.map((type) => (
                     <SelectItem key={type.value} value={type.value}>
-                      {type.label}
+                      {t(`paymentTypes.${type.value}`)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               {formData.type === "payment" && selectedTenant && (
                 <p className="text-xs text-muted-foreground">
-                  Tip: Use "Adjustments" section below for discounts or deductions
+                  {t("payment.tipUseAdjustments")}
                 </p>
               )}
               {formData.type === "adjustment" && (
                 <p className="text-xs text-muted-foreground">
-                  For payment with adjustments, use "Payment" type and expand "Adjustments" section
+                  {t("payment.forPaymentWithAdjustments")}
                 </p>
               )}
             </div>
@@ -704,7 +736,7 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
             {/* Method & Date - Side by Side */}
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="method">Payment Method *</Label>
+                <Label htmlFor="method">{t("payment.method")} *</Label>
                 <Select
                   value={formData.method}
                   onValueChange={(value) => setFormData((prev) => ({ ...prev, method: value }))}
@@ -716,7 +748,7 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
                   <SelectContent>
                     {paymentMethods.map((method) => (
                       <SelectItem key={method.value} value={method.value}>
-                        {method.label}
+                        {t(`paymentMethods.${method.value}`)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -724,7 +756,7 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="date">Date *</Label>
+                <Label htmlFor="date">{t("payment.date")} *</Label>
                 <Input
                   id="date"
                   type="date"
@@ -738,7 +770,7 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
 
             {/* Notes */}
             <div className="grid gap-2">
-              <Label htmlFor="notes">Notes (optional)</Label>
+              <Label htmlFor="notes">{t("payment.notes")} (optional)</Label>
               <Input
                 id="notes"
                 type="text"
@@ -821,15 +853,185 @@ export function RecordPaymentForm({ trigger, onSubmit, preSelectedTenantId }: Re
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={submitting}>
-              Cancel
+              {t("payment.cancel")}
             </Button>
             <Button type="submit" disabled={!formData.tenantId || (formData.type !== "credit" && !formData.amount) || submitting}>
               {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {submitting ? "Recording..." : "Record Payment"}
+              {submitting ? t("payment.submitting") : t("payment.submit")}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
+
+      {/* Confirmation Dialog */}
+      <Dialog open={showConfirmation} onOpenChange={setShowConfirmation}>
+        <DialogContent className="sm:max-w-[450px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              ⚠️ Confirm Payment
+            </DialogTitle>
+            <DialogDescription>
+              Please review the payment details before confirming
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-4">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Tenant:</span>
+              <span className="font-medium">{selectedTenant?.name}</span>
+            </div>
+            {selectedTenant?.rooms && selectedTenant.rooms.length > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Room(s):</span>
+                <span className="font-medium">
+                  {selectedTenant.rooms.map(r => r.code).join(", ")}
+                </span>
+              </div>
+            )}
+            {selectedTenant?.nextUnpaidPeriod && (formData.type === "payment" || formData.type === "credit") && (
+              <div className="flex justify-between text-sm bg-blue-50 dark:bg-blue-950 p-2 rounded">
+                <span className="text-muted-foreground">📅 Paying for:</span>
+                <span className="font-semibold text-blue-700 dark:text-blue-300">
+                  {selectedTenant.nextUnpaidPeriod}
+                </span>
+              </div>
+            )}
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Amount:</span>
+              <span className="font-semibold text-green-600">₹{formData.amount.toLocaleString("en-IN")}</span>
+            </div>
+            {formData.adjustmentType && formData.adjustmentType !== "none" && formData.adjustmentAmount && formData.adjustmentAmount > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">
+                  {adjustmentTypes.find(t => t.value === formData.adjustmentType)?.label}:
+                </span>
+                <span className="font-semibold text-orange-600">
+                  +₹{formData.adjustmentAmount.toLocaleString("en-IN")}
+                </span>
+              </div>
+            )}
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Payment Date:</span>
+              <span className="font-medium">{format(new Date(formData.date), "dd MMM yyyy")}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Method:</span>
+              <span className="font-medium capitalize">
+                {paymentMethods.find(m => m.value === formData.method)?.label}
+              </span>
+            </div>
+            {formData.notes && (
+              <div className="text-sm pt-2 border-t">
+                <span className="text-muted-foreground">Notes:</span>
+                <p className="font-medium mt-1">{formData.notes}</p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowConfirmation(false)}
+              disabled={submitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleConfirmPayment}
+              disabled={submitting}
+            >
+              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {submitting ? "Processing..." : "✅ Confirm Payment"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Success Dialog */}
+      <Dialog open={showSuccess} onOpenChange={setShowSuccess}>
+        <DialogContent className="sm:max-w-[450px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-green-600">
+              ✅ Payment Successful!
+            </DialogTitle>
+            <DialogDescription>
+              Payment has been recorded successfully
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-4">
+            {paymentResult?.transactionId && (
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Transaction ID:</span>
+                <span className="font-mono text-xs">{paymentResult.transactionId.slice(0, 8)}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Tenant:</span>
+              <span className="font-medium">{selectedTenant?.name}</span>
+            </div>
+            {selectedTenant?.rooms && selectedTenant.rooms.length > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Room(s):</span>
+                <span className="font-medium">
+                  {selectedTenant.rooms.map(r => r.code).join(", ")}
+                </span>
+              </div>
+            )}
+            {paymentResult?.appliedPeriods && paymentResult.appliedPeriods.length > 0 && (
+              <div className="bg-green-50 dark:bg-green-950 p-3 rounded space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">📅 Paid Period(s):</span>
+                  <span className="font-semibold text-green-700 dark:text-green-300">
+                    {paymentResult.appliedPeriods.length === 1
+                      ? formatPeriodDisplay(paymentResult.appliedPeriods[0])
+                      : `${formatPeriodDisplay(paymentResult.appliedPeriods[0])} to ${formatPeriodDisplay(paymentResult.appliedPeriods[paymentResult.appliedPeriods.length - 1])}`
+                    }
+                  </span>
+                </div>
+                <div className="text-xs text-center text-green-700 dark:text-green-300 font-medium">
+                  ✅ {paymentResult.appliedPeriods.length === 1
+                    ? `${formatPeriodDisplay(paymentResult.appliedPeriods[0])} rent fully paid!`
+                    : `${paymentResult.appliedPeriods.length} months rent fully paid!`
+                  }
+                </div>
+              </div>
+            )}
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Amount:</span>
+              <span className="font-semibold text-green-600">₹{formData.amount.toLocaleString("en-IN")}</span>
+            </div>
+            {paymentResult?.creditAmount !== undefined && paymentResult.creditAmount > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Remaining Credit:</span>
+                <span className="font-semibold text-blue-600">
+                  ₹{paymentResult.creditAmount.toLocaleString("en-IN")}
+                </span>
+              </div>
+            )}
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Payment Date:</span>
+              <span className="font-medium">{format(new Date(formData.date), "dd MMM yyyy")}</span>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              onClick={handleSuccessClose}
+              className="w-full"
+            >
+              OK
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
+}
+
+// Helper function to format period (YYYY-MM) to readable format (MMM-YY)
+function formatPeriodDisplay(period: string): string {
+  const [year, month] = period.split("-");
+  const date = new Date(parseInt(year), parseInt(month) - 1);
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${monthNames[date.getMonth()]}-${year.substring(2)}`;
 }

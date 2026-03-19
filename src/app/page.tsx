@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DoorOpen, Users, AlertTriangle, IndianRupee, Loader2 } from "lucide-react";
 import { SearchFilter } from "@/components/search-filter";
 import { TenantOverviewTable, TenantOverview, SortField, SortDirection } from "@/components/tenant-overview-table";
+import { useTranslations } from "@/hooks/use-translations";
 
 interface DashboardStats {
   occupiedRooms: number;
@@ -16,6 +17,7 @@ interface DashboardStats {
 }
 
 export default function Home() {
+  const { t } = useTranslations();
   const [search, setSearch] = useState("");
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [tenantsOverview, setTenantsOverview] = useState<TenantOverview[]>([]);
@@ -254,7 +256,7 @@ export default function Home() {
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Rooms</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("nav.rooms")}</CardTitle>
             <DoorOpen className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -262,27 +264,27 @@ export default function Home() {
               {stats?.occupiedRooms || 0}/{(stats?.occupiedRooms || 0) + (stats?.vacantRooms || 0)}
             </div>
             <p className="text-xs text-muted-foreground">
-              {stats?.vacantRooms || 0} vacant
+              {stats?.vacantRooms || 0} {t("dashboard.vacantRooms").toLowerCase()}
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tenants</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("nav.tenants")}</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats?.activeTenants || 0}</div>
             <p className="text-xs text-muted-foreground">
-              Active tenants
+              {t("dashboard.activeTenants")}
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Collection</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("dashboard.thisMonthCollection")}</CardTitle>
             <IndianRupee className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -295,13 +297,13 @@ export default function Home() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Defaulters</CardTitle>
+            <CardTitle className="text-sm font-medium">{t("dashboard.defaulters")}</CardTitle>
             <AlertTriangle className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-destructive">{stats?.defaultersCount || 0}</div>
             <p className="text-xs text-muted-foreground">
-              ₹{(stats?.totalDues || 0).toLocaleString("en-IN")} dues
+              ₹{(stats?.totalDues || 0).toLocaleString("en-IN")} {t("dashboard.totalDues").toLowerCase()}
             </p>
           </CardContent>
         </Card>
@@ -311,12 +313,12 @@ export default function Home() {
       <Card>
         <CardHeader className="pb-3 sticky top-14 z-40 bg-card rounded-t-lg md:static">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-            <CardTitle className="text-base">Tenant Overview</CardTitle>
+            <CardTitle className="text-base">{t("dashboard.tenantsOverview")}</CardTitle>
             <div className="w-full md:w-64">
               <SearchFilter
                 value={search}
                 onChange={setSearch}
-                placeholder="Search tenant or room..."
+                placeholder={t("dashboard.search")}
               />
             </div>
           </div>
