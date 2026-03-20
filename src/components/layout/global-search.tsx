@@ -95,7 +95,7 @@ export function GlobalSearch() {
   const hasResults = results.tenants.length > 0 || results.rooms.length > 0;
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setOpen} modal={false}>
       <PopoverTrigger asChild>
         <div className="relative w-64 hidden md:block">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
