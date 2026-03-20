@@ -2,26 +2,41 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DoorOpen, Users, AlertTriangle, IndianRupee, Loader2 } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { DoorOpen, Users, AlertTriangle, IndianRupee, Loader2, TrendingUp, Wallet } from "lucide-react";
 import { SearchFilter } from "@/components/search-filter";
 import { TenantOverviewTable, TenantOverview, SortField, SortDirection } from "@/components/tenant-overview-table";
 import { useTranslations } from "@/hooks/use-translations";
 
-interface DashboardStats {
-  occupiedRooms: number;
-  vacantRooms: number;
-  activeTenants: number;
-  defaultersCount: number;
-  totalDues: number;
-  thisMonthCollection: number;
+interface DashboardData {
+  stats: {
+    rooms: {
+      total: number;
+      occupied: number;
+      vacant: number;
+      occupancyRate: number;
+    };
+    tenants: {
+      total: number;
+      active: number;
+      defaulters: number;
+      totalDues: number;
+    };
+    collections: {
+      thisMonth: number;
+      paymentCount: number;
+      cash: number;
+      upi: number;
+    };
+  };
+  tenants: any[];
 }
 
 export default function Home() {
   const { t } = useTranslations();
   const [search, setSearch] = useState("");
-  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [tenantsOverview, setTenantsOverview] = useState<TenantOverview[]>([]);
-  const [tenantsOptimized, setTenantsOptimized] = useState<TenantOverview[]>([]);
   const [loading, setLoading] = useState(true);
   const [showOptionalColumns, setShowOptionalColumns] = useState({
     securityDeposit: false,
@@ -30,89 +45,25 @@ export default function Home() {
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
-  // Debug mode - only enabled via environment variable for development
-  const debugMode = process.env.NEXT_PUBLIC_DEBUG_MODE === 'true';
-  const [performanceData, setPerformanceData] = useState<{
-    originalTime: number;
-    optimizedTime: number;
-  } | null>(null);
-
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
         setLoading(true);
 
-        // Fetch rooms and tenants data
-        const originalStartTime = Date.now();
-        const [roomsRes, tenantsRes] = await Promise.all([
-          fetch("/api/rooms"),
-          fetch("/api/tenants"),
-        ]);
-        const originalEndTime = Date.now();
+        // Single API call for all dashboard data
+        const response = await fetch("/api/dashboard");
 
-        if (!roomsRes.ok || !tenantsRes.ok) {
+        if (!response.ok) {
           throw new Error("Failed to fetch dashboard data");
         }
 
-        const roomsData = await roomsRes.json();
-        const tenantsData = await tenantsRes.json();
-
-        const rooms = roomsData.rooms || [];
-        const tenants = tenantsData.tenants || [];
-
-        // Fetch optimized endpoint if debug mode is enabled
-        let tenantsOptimizedData = null;
-        let optimizedTime = 0;
-        if (debugMode) {
-          const optimizedStartTime = Date.now();
-          const tenantsOptimizedRes = await fetch("/api/tenants/optimized");
-          const optimizedEndTime = Date.now();
-          optimizedTime = optimizedEndTime - optimizedStartTime;
-
-          if (tenantsOptimizedRes.ok) {
-            tenantsOptimizedData = await tenantsOptimizedRes.json();
-          }
-        }
-
-        setPerformanceData({
-          originalTime: originalEndTime - originalStartTime,
-          optimizedTime: optimizedTime,
-        });
-
-        // Calculate stats
-        const occupiedRooms = rooms.filter((r: any) => r.status === "occupied").length;
-        const vacantRooms = rooms.filter((r: any) => r.status === "vacant").length;
-        const activeTenants = tenants.filter((t: any) => t.is_active).length;
-        const defaultersCount = tenants.filter((t: any) => t.is_active && (t.total_dues || 0) > 0).length;
-        const totalDues = tenants.reduce((sum: number, t: any) => sum + (t.total_dues || 0), 0);
-
-        // Calculate this month's collection
-        const currentDate = new Date();
-        const currentMonth = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
-
-        const transactionsRes = await fetch("/api/transactions");
-        const transactionsData = await transactionsRes.json();
-        const transactions = transactionsData.transactions || [];
-
-        const thisMonthCollection = transactions
-          .filter((t: any) => {
-            const transactionMonth = t.transaction_date?.substring(0, 7);
-            return transactionMonth === currentMonth && t.type === 'payment';
-          })
-          .reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
-
-        setStats({
-          occupiedRooms,
-          vacantRooms,
-          activeTenants,
-          defaultersCount,
-          totalDues,
-          thisMonthCollection,
-        });
+        const data = await response.json();
+        setDashboardData(data);
 
         // Format tenants overview data
+        const tenants = data.tenants || [];
         const tenantsOverviewData: TenantOverview[] = tenants
-          .filter((t: any) => t.is_active)
+          .filter((t: any) => t.is_active === 1)
           .map((tenant: any) => {
             // Parse room codes from comma-separated string
             const roomCodes = tenant.room_codes ? tenant.room_codes.split(',').filter(Boolean) : [];
@@ -136,31 +87,6 @@ export default function Home() {
           });
 
         setTenantsOverview(tenantsOverviewData);
-
-        // Set optimized tenants data if available
-        if (tenantsOptimizedData && tenantsOptimizedData.tenants) {
-          const tenantsOptimizedOverview: TenantOverview[] = tenantsOptimizedData.tenants
-            .filter((t: any) => t.is_active)
-            .map((tenant: any) => {
-              const roomCodes = tenant.room_codes ? tenant.room_codes.split(',').filter(Boolean) : [];
-              const monthlyRent = Number(tenant.monthly_rent || 0);
-              const totalDues = Number(tenant.total_dues || 0);
-              const pendingMonths = monthlyRent > 0 ? Math.floor(totalDues / monthlyRent) : 0;
-
-              return {
-                id: tenant.id,
-                name: tenant.name,
-                rooms: roomCodes,
-                monthlyRent,
-                lastPaidMonth: tenant.last_paid_month || "Never",
-                pendingMonths,
-                totalDues,
-                securityDeposit: Number(tenant.security_deposit_balance || 0),
-                creditBalance: Number(tenant.credit_balance || 0),
-              };
-            });
-          setTenantsOptimized(tenantsOptimizedOverview);
-        }
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
       } finally {
@@ -169,7 +95,7 @@ export default function Home() {
     };
 
     fetchDashboardData();
-  }, [debugMode]);
+  }, []);
 
   const filteredAndSortedTenants = useMemo(() => {
     let result = tenantsOverview;
@@ -231,76 +157,123 @@ export default function Home() {
     );
   }
 
+  const stats = dashboardData?.stats;
+
   return (
     <div className="p-4 space-y-4">
-      {/* Debug Mode - Hidden from UI, controlled by NEXT_PUBLIC_DEBUG_MODE env var */}
-      {debugMode && performanceData && (
-        <div className="mb-2 text-xs bg-blue-50 text-blue-700 px-3 py-2 rounded border border-blue-200">
-          <span className="font-medium">Performance:</span> Original: {performanceData.originalTime}ms | Optimized: {performanceData.optimizedTime}ms |
-          Speedup: {performanceData.originalTime > 0 ? (performanceData.originalTime / Math.max(performanceData.optimizedTime, 1)).toFixed(1) : 0}x
-        </div>
+      {/* Critical Alert Banner */}
+      {stats && stats.tenants.defaulters > 5 && (
+        <Alert variant="destructive" className="border-l-4">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription className="flex items-center justify-between">
+            <span>
+              <strong>{stats.tenants.defaulters} tenants</strong> with overdue payments (₹{stats.tenants.totalDues.toLocaleString("en-IN")} total dues)
+            </span>
+          </AlertDescription>
+        </Alert>
       )}
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      {/* Compact Stats Grid - 2x2 Grouped Layout */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {/* Rooms & Occupancy */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{t("nav.rooms")}</CardTitle>
-            <DoorOpen className="h-4 w-4 text-muted-foreground" />
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
+            <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+              Rooms & Occupancy
+            </CardTitle>
+            <DoorOpen className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {stats?.occupiedRooms || 0}/{(stats?.occupiedRooms || 0) + (stats?.vacantRooms || 0)}
+          <CardContent className="space-y-1">
+            <div className="flex items-baseline justify-between">
+              <span className="text-3xl font-bold">{stats?.rooms.occupied || 0}</span>
+              <span className="text-lg text-muted-foreground">/ {stats?.rooms.total || 0} rooms</span>
             </div>
-            <p className="text-xs text-muted-foreground">
-              {stats?.vacantRooms || 0} {t("dashboard.vacantRooms").toLowerCase()}
-            </p>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">{stats?.rooms.vacant || 0} vacant</span>
+              <span className="font-medium text-green-600">{stats?.rooms.occupancyRate || 0}% occupied</span>
+            </div>
           </CardContent>
         </Card>
 
+        {/* Tenants */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{t("nav.tenants")}</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
+            <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+              Tenants
+            </CardTitle>
+            <Users className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats?.activeTenants || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              {t("dashboard.activeTenants")}
-            </p>
+          <CardContent className="space-y-1">
+            <div className="flex items-baseline justify-between">
+              <span className="text-3xl font-bold">{stats?.tenants.active || 0}</span>
+              <span className="text-lg text-muted-foreground">active</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              {stats && stats.tenants.defaulters > 0 ? (
+                <>
+                  <span className="text-muted-foreground">{stats.tenants.defaulters} with dues</span>
+                  <span className="font-medium text-destructive">₹{stats.tenants.totalDues.toLocaleString("en-IN")}</span>
+                </>
+              ) : (
+                <span className="text-green-600 font-medium">All settled ✓</span>
+              )}
+            </div>
           </CardContent>
         </Card>
 
+        {/* This Month Collection */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{t("dashboard.thisMonthCollection")}</CardTitle>
-            <IndianRupee className="h-4 w-4 text-muted-foreground" />
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
+            <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+              This Month Collections
+            </CardTitle>
+            <TrendingUp className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">₹{(stats?.thisMonthCollection || 0).toLocaleString("en-IN")}</div>
-            <p className="text-xs text-muted-foreground">
-              This month
-            </p>
+          <CardContent className="space-y-1">
+            <div className="flex items-baseline justify-between">
+              <span className="text-3xl font-bold">₹{(stats?.collections.thisMonth || 0).toLocaleString("en-IN")}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">{stats?.collections.paymentCount || 0} payments</span>
+              <div className="flex gap-2 text-xs">
+                <span>Cash: ₹{(stats?.collections.cash || 0).toLocaleString("en-IN")}</span>
+                <span>•</span>
+                <span>UPI: ₹{(stats?.collections.upi || 0).toLocaleString("en-IN")}</span>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
+        {/* Cash in Hand - Placeholder for future enhancement */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{t("dashboard.defaulters")}</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-destructive" />
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
+            <CardTitle className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+              Quick Stats
+            </CardTitle>
+            <Wallet className="h-5 w-5 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-destructive">{stats?.defaultersCount || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              ₹{(stats?.totalDues || 0).toLocaleString("en-IN")} {t("dashboard.totalDues").toLowerCase()}
-            </p>
+          <CardContent className="space-y-1">
+            <div className="text-sm space-y-2">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Total Rooms:</span>
+                <span className="font-medium">{stats?.rooms.total || 0}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Total Tenants:</span>
+                <span className="font-medium">{stats?.tenants.total || 0}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Occupancy Rate:</span>
+                <span className="font-medium text-green-600">{stats?.rooms.occupancyRate || 0}%</span>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
 
       {/* Tenant Overview Table */}
       <Card>
-        <CardHeader className="pb-3 sticky top-14 z-40 bg-card rounded-t-lg md:static">
+        <CardHeader className="pb-3 sticky top-0 z-30 bg-background/95 backdrop-blur md:static">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <CardTitle className="text-base">{t("dashboard.tenantsOverview")}</CardTitle>
             <div className="w-full md:w-64">
@@ -320,8 +293,6 @@ export default function Home() {
             sortField={sortField}
             sortDirection={sortDirection}
             onSort={handleSort}
-            debugMode={debugMode}
-            tenantsOptimized={tenantsOptimized}
           />
         </CardContent>
       </Card>
