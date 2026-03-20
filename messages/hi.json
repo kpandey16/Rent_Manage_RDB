@@ -10,6 +10,11 @@
     "settings": "सेटिंग्स",
     "logout": "लॉग आउट"
   },
+  "search": {
+    "placeholder": "किरायेदार, कमरे खोजें...",
+    "noResults": "कोई परिणाम नहीं मिला",
+    "typeMore": "कम से कम 2 अक्षर टाइप करें"
+  },
   "dashboard": {
     "title": "डैशबोर्ड",
     "occupiedRooms": "भरे हुए कमरे",
