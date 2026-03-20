@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Search, User, DoorOpen, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   Popover,
   PopoverContent,
-  PopoverTrigger,
+  PopoverAnchor,
 } from "@/components/ui/popover";
 import {
   Command,
@@ -44,6 +44,7 @@ export function GlobalSearch() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResults>({ tenants: [], rooms: [] });
   const [loading, setLoading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const { t } = useTranslations();
 
@@ -82,6 +83,13 @@ export function GlobalSearch() {
     return () => clearTimeout(timer);
   }, [query, searchData]);
 
+  // Maintain input focus when popover opens
+  useEffect(() => {
+    if (open && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [open]);
+
   const handleSelect = (type: "tenant" | "room", id: string) => {
     setOpen(false);
     setQuery("");
@@ -96,10 +104,11 @@ export function GlobalSearch() {
 
   return (
     <Popover open={open} onOpenChange={setOpen} modal={false}>
-      <PopoverTrigger asChild>
+      <PopoverAnchor asChild>
         <div className="relative w-64 hidden md:block">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
+            ref={inputRef}
             type="search"
             placeholder={t("search.placeholder") || "Search tenants, rooms..."}
             className="pl-8 pr-4"
@@ -107,9 +116,15 @@ export function GlobalSearch() {
             onChange={(e) => {
               setQuery(e.target.value);
             }}
+            onFocus={() => {
+              // Re-open popover if there's a query
+              if (query.trim().length >= 2) {
+                setOpen(true);
+              }
+            }}
           />
         </div>
-      </PopoverTrigger>
+      </PopoverAnchor>
       <PopoverContent className="w-64 p-0" align="start">
         <Command>
           <CommandList>
