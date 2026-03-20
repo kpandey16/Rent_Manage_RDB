@@ -2,8 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { DoorOpen, Users, AlertTriangle, IndianRupee, Loader2, TrendingUp, Wallet } from "lucide-react";
+import { DoorOpen, Users, IndianRupee, Loader2, TrendingUp, Wallet } from "lucide-react";
 import { SearchFilter } from "@/components/search-filter";
 import { TenantOverviewTable, TenantOverview, SortField, SortDirection } from "@/components/tenant-overview-table";
 import { useTranslations } from "@/hooks/use-translations";
@@ -161,18 +160,6 @@ export default function Home() {
 
   return (
     <div className="p-4 space-y-4">
-      {/* Critical Alert Banner */}
-      {stats && stats.tenants.defaulters > 5 && (
-        <Alert variant="destructive" className="border-l-4">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription className="flex items-center justify-between">
-            <span>
-              <strong>{stats.tenants.defaulters} tenants</strong> with overdue payments (₹{stats.tenants.totalDues.toLocaleString("en-IN")} total dues)
-            </span>
-          </AlertDescription>
-        </Alert>
-      )}
-
       {/* Compact Stats Grid - 2x2 Grouped Layout */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {/* Rooms & Occupancy */}

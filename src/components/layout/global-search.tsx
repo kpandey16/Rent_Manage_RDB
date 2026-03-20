@@ -67,10 +67,16 @@ export function GlobalSearch() {
     }
   }, []);
 
-  // Debounce search
+  // Debounce search and auto-open when results available
   useEffect(() => {
     const timer = setTimeout(() => {
       searchData(query);
+      // Only open popover if there's a query with enough characters
+      if (query.trim().length >= 2) {
+        setOpen(true);
+      } else {
+        setOpen(false);
+      }
     }, 300);
 
     return () => clearTimeout(timer);
@@ -100,9 +106,7 @@ export function GlobalSearch() {
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
-              setOpen(true);
             }}
-            onFocus={() => setOpen(true)}
           />
         </div>
       </PopoverTrigger>
