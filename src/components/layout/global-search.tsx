@@ -19,19 +19,19 @@ import {
 import { useTranslations } from "@/hooks/use-translations";
 
 interface Tenant {
-  tenant_id: number;
+  tenant_id: string;
   name: string;
   phone: string | null;
-  email: string | null;
   room_id: string | null;
 }
 
 interface Room {
   room_id: string;
+  code: string;
   monthly_rent: number;
   status: string;
   tenant_name: string | null;
-  tenant_id: number | null;
+  tenant_id: string | null;
 }
 
 interface SearchResults {
@@ -76,7 +76,7 @@ export function GlobalSearch() {
     return () => clearTimeout(timer);
   }, [query, searchData]);
 
-  const handleSelect = (type: "tenant" | "room", id: number | string) => {
+  const handleSelect = (type: "tenant" | "room", id: string) => {
     setOpen(false);
     setQuery("");
     if (type === "tenant") {
@@ -158,7 +158,7 @@ export function GlobalSearch() {
                   >
                     <DoorOpen className="mr-2 h-4 w-4" />
                     <div className="flex flex-col">
-                      <span className="font-medium">Room {room.room_id}</span>
+                      <span className="font-medium">Room {room.code}</span>
                       <span className="text-xs text-muted-foreground">
                         {room.status === "occupied"
                           ? `Occupied${room.tenant_name ? ` • ${room.tenant_name}` : ""}`

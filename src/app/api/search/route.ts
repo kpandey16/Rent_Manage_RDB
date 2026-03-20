@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { db } from "@/lib/db";
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,59 +10,58 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ tenants: [], rooms: [] });
     }
 
-    const searchTerm = `%${query.trim()}%`;
+    const searchTerm = `%${query.trim().toLowerCase()}%`;
 
-    // Search tenants by name, phone, or email
-    const tenantsResult = await pool.query(
-      `SELECT
-        t.tenant_id,
+    // Search tenants by name or phone
+    const tenantsResult = await db.execute({
+      sql: `SELECT
+        t.id as tenant_id,
         t.name,
         t.phone,
-        t.email,
-        ra.room_id
+        tr.room_id
       FROM tenants t
-      LEFT JOIN room_allocations ra ON t.tenant_id = ra.tenant_id
-        AND ra.vacated_on IS NULL
+      LEFT JOIN tenant_rooms tr ON t.id = tr.tenant_id
+        AND tr.is_active = 1
       WHERE
-        t.name ILIKE $1
-        OR t.phone ILIKE $1
-        OR t.email ILIKE $1
+        t.is_active = 1
+        AND (
+          LOWER(t.name) LIKE ?
+          OR LOWER(t.phone) LIKE ?
+        )
       ORDER BY t.name
       LIMIT 10`,
-      [searchTerm]
-    );
+      args: [searchTerm, searchTerm]
+    });
 
-    // Search rooms by room_id
-    const roomsResult = await pool.query(
-      `SELECT
-        r.room_id,
+    // Search rooms by code (room number)
+    const roomsResult = await db.execute({
+      sql: `SELECT
+        r.id as room_id,
+        r.code,
         r.monthly_rent,
-        CASE
-          WHEN ra.allocation_id IS NOT NULL THEN 'occupied'
-          ELSE 'vacant'
-        END as status,
+        r.status,
         t.name as tenant_name,
-        t.tenant_id
+        t.id as tenant_id
       FROM rooms r
-      LEFT JOIN room_allocations ra ON r.room_id = ra.room_id
-        AND ra.vacated_on IS NULL
-      LEFT JOIN tenants t ON ra.tenant_id = t.tenant_id
-      WHERE r.room_id ILIKE $1
-      ORDER BY r.room_id
+      LEFT JOIN tenant_rooms tr ON r.id = tr.room_id
+        AND tr.is_active = 1
+      LEFT JOIN tenants t ON tr.tenant_id = t.id
+      WHERE LOWER(r.code) LIKE ?
+      ORDER BY r.code
       LIMIT 10`,
-      [searchTerm]
-    );
+      args: [searchTerm]
+    });
 
     return NextResponse.json({
-      tenants: tenantsResult.rows.map((row) => ({
+      tenants: tenantsResult.rows.map((row: any) => ({
         tenant_id: row.tenant_id,
         name: row.name,
         phone: row.phone,
-        email: row.email,
         room_id: row.room_id,
       })),
-      rooms: roomsResult.rows.map((row) => ({
+      rooms: roomsResult.rows.map((row: any) => ({
         room_id: row.room_id,
+        code: row.code,
         monthly_rent: row.monthly_rent,
         status: row.status,
         tenant_name: row.tenant_name,
