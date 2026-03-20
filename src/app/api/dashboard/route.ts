@@ -101,8 +101,8 @@ export async function GET() {
     const tenants = (tenantsResult.rows || []).map((t: any) => {
       const totalLedger = Number(t.total_ledger || 0);
       const totalRentPaid = Number(t.total_rent_paid || 0);
-      const totalDues = totalRentPaid - totalLedger; // Negative means tenant owes money
-      const creditBalance = totalLedger - totalRentPaid; // Positive means tenant has credit
+      const totalDues = totalLedger - totalRentPaid; // Positive means tenant owes money
+      const creditBalance = totalRentPaid - totalLedger; // Positive means tenant has overpaid
 
       return {
         ...t,
