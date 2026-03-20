@@ -14,6 +14,84 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
+/**
+ * Calculate total rent owed for a tenant based on months occupied
+ * Uses SQL to efficiently calculate rent considering rent updates
+ */
+async function calculateTotalRentOwed(tenantId: string): Promise<number> {
+  try {
+    const result = await db.execute({
+      sql: `
+        WITH RECURSIVE
+          -- Get tenant's active rooms
+          tenant_rooms_data AS (
+            SELECT
+              tr.room_id,
+              tr.move_in_date,
+              COALESCE(tr.move_out_date, DATE('now')) as move_out_date
+            FROM tenant_rooms tr
+            WHERE tr.tenant_id = ?
+              AND tr.is_active = 1
+          ),
+
+          -- Generate all months from move-in to today for each room
+          months AS (
+            SELECT
+              room_id,
+              DATE(SUBSTR(move_in_date, 1, 7) || '-01') as period_date,
+              move_in_date,
+              move_out_date
+            FROM tenant_rooms_data
+
+            UNION ALL
+
+            SELECT
+              m.room_id,
+              DATE(m.period_date, '+1 month') as period_date,
+              m.move_in_date,
+              m.move_out_date
+            FROM months m
+            WHERE DATE(m.period_date, '+1 month') <= DATE(SUBSTR(m.move_out_date, 1, 7) || '-01')
+          ),
+
+          -- Get rent for each period considering rent updates
+          period_rents AS (
+            SELECT
+              m.room_id,
+              m.period_date,
+              STRFTIME('%Y-%m', m.period_date) as period,
+              COALESCE(
+                (SELECT ru.new_rent
+                 FROM rent_updates ru
+                 WHERE ru.room_id = m.room_id
+                   AND ru.effective_from <= m.period_date
+                 ORDER BY ru.effective_from DESC
+                 LIMIT 1),
+                (SELECT ru.old_rent
+                 FROM rent_updates ru
+                 WHERE ru.room_id = m.room_id
+                 ORDER BY ru.effective_from ASC
+                 LIMIT 1),
+                (SELECT r.monthly_rent FROM rooms r WHERE r.id = m.room_id)
+              ) as rent_amount
+            FROM months m
+          )
+
+        -- Sum all period rents
+        SELECT
+          COALESCE(SUM(rent_amount), 0) as total_rent_owed
+        FROM period_rents
+      `,
+      args: [tenantId],
+    });
+
+    return Number(result.rows[0]?.total_rent_owed || 0);
+  } catch (error) {
+    console.error(`Error calculating rent owed for tenant ${tenantId}:`, error);
+    return 0;
+  }
+}
+
 export async function GET() {
   try {
     // Fetch all data in parallel for best performance
@@ -97,20 +175,28 @@ export async function GET() {
     const vacantRooms = rooms.filter((r: any) => r.status === "vacant").length;
     const totalRooms = rooms.length;
 
-    // Process tenants data
-    const tenants = (tenantsResult.rows || []).map((t: any) => {
-      const totalLedger = Number(t.total_ledger || 0);
-      const totalRentPaid = Number(t.total_rent_paid || 0);
-      const totalDues = totalLedger - totalRentPaid; // Positive means tenant owes money
-      const creditBalance = totalRentPaid - totalLedger; // Positive means tenant has overpaid
+    // Process tenants data - calculate rent owed for each tenant
+    const tenants = await Promise.all(
+      (tenantsResult.rows || []).map(async (t: any) => {
+        const totalLedger = Number(t.total_ledger || 0);
+        const totalRentPaid = Number(t.total_rent_paid || 0);
 
-      return {
-        ...t,
-        monthly_rent: Number(t.monthly_rent || 0),
-        total_dues: totalDues,
-        credit_balance: creditBalance,
-      };
-    });
+        // Calculate total rent owed based on months occupied
+        const totalRentOwed = await calculateTotalRentOwed(t.id);
+
+        // Calculate financial metrics (matching /api/tenants logic)
+        const netBalance = totalRentOwed - totalLedger; // What tenant owes after applying credits
+        const totalDues = Math.max(0, netBalance); // Positive only
+        const creditBalance = Math.max(0, totalLedger - totalRentPaid); // Unused payment credits
+
+        return {
+          ...t,
+          monthly_rent: Number(t.monthly_rent || 0),
+          total_dues: totalDues,
+          credit_balance: creditBalance,
+        };
+      })
+    );
 
     const activeTenants = tenants.filter((t: any) => t.is_active === 1).length;
     const defaultersCount = tenants.filter(
