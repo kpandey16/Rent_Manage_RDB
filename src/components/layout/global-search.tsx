@@ -125,7 +125,16 @@ export function GlobalSearch() {
           />
         </div>
       </PopoverAnchor>
-      <PopoverContent className="w-64 p-0" align="start">
+      <PopoverContent
+        className="w-64 p-0"
+        align="start"
+        onOpenAutoFocus={(e) => {
+          // Prevent popover from stealing focus when it opens
+          e.preventDefault();
+          // Ensure input keeps focus
+          inputRef.current?.focus();
+        }}
+      >
         <Command>
           <CommandList>
             {loading && (
