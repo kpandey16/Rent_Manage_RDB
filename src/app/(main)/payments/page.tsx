@@ -17,6 +17,7 @@ import { DownloadReceiptButton } from "@/components/receipt/download-receipt-but
 import { PAYMENT_METHOD_COLORS } from "@/lib/constants";
 import { Pagination, PaginationInfo } from "@/components/ui/pagination";
 import { usePagination } from "@/hooks/use-pagination";
+import { FilterBar } from "@/components/ui/filter-bar";
 import { toast } from "sonner";
 
 interface Transaction {
@@ -239,127 +240,63 @@ export default function PaymentsPage() {
         <RecordPaymentForm onSubmit={handlePaymentSubmit} />
       </div>
 
-      {/* Filter Bar */}
-      <Card className="sticky top-0 z-10 bg-background shadow-sm">
-        <CardContent className="p-4 space-y-3">
-          {/* First Row: Search, Payment Method, Date Range */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by tenant name..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-              />
-            </div>
+      {/* Compact Filter Bar - Mobile Optimized */}
+      <div className="sticky top-14 md:top-0 z-40 bg-background pb-3 -mx-4 px-4 md:mx-0 md:px-0">
+        <FilterBar
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          searchPlaceholder="Search by tenant name..."
+          activeFilterCount={activeFilterCount}
+          filters={[
+            {
+              id: "payment-method",
+              label: "Payment Method",
+              value: paymentMethodFilter,
+              options: [
+                { label: "All Methods", value: "all" },
+                { label: "💵 Cash Only", value: "cash" },
+                { label: "📱 UPI Only", value: "upi" },
+              ],
+              onChange: setPaymentMethodFilter,
+              icon: <Filter className="h-4 w-4 mr-2" />,
+            },
+            {
+              id: "date-range",
+              label: "Date Range",
+              value: dateRangeFilter,
+              options: [
+                { label: "All Time", value: "all" },
+                { label: "Last 7 Days", value: "7days" },
+                { label: "Last 1 Month", value: "1month" },
+                { label: "Last 6 Months", value: "6months" },
+              ],
+              onChange: setDateRangeFilter,
+              icon: <Calendar className="h-4 w-4 mr-2" />,
+            },
+            {
+              id: "sort",
+              label: "Sort By",
+              value: sortBy,
+              options: [
+                { label: "Date (Newest)", value: "date-desc" },
+                { label: "Date (Oldest)", value: "date-asc" },
+                { label: "Amount (High)", value: "amount-desc" },
+                { label: "Amount (Low)", value: "amount-asc" },
+                { label: "Name (A-Z)", value: "name-asc" },
+                { label: "Name (Z-A)", value: "name-desc" },
+              ],
+              onChange: (value: any) => setSortBy(value),
+              icon: <ArrowUpDown className="h-4 w-4 mr-2" />,
+            },
+          ]}
+        />
 
-            {/* Payment Method Filter */}
-            <Select value={paymentMethodFilter} onValueChange={setPaymentMethodFilter}>
-              <SelectTrigger>
-                <div className="flex items-center gap-2">
-                  <Filter className="h-4 w-4" />
-                  <SelectValue placeholder="Payment Method" />
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Methods</SelectItem>
-                <SelectItem value="cash">💵 Cash Only</SelectItem>
-                <SelectItem value="upi">📱 UPI Only</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {/* Date Range Filter */}
-            <Select value={dateRangeFilter} onValueChange={setDateRangeFilter}>
-              <SelectTrigger>
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4" />
-                  <SelectValue placeholder="Date Range" />
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Time</SelectItem>
-                <SelectItem value="7days">Last 7 Days</SelectItem>
-                <SelectItem value="1month">Last 1 Month</SelectItem>
-                <SelectItem value="6months">Last 6 Months</SelectItem>
-                <SelectItem value="custom">Custom Range</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Custom Date Range (shown when custom is selected) */}
-          {dateRangeFilter === "custom" && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t">
-              <div>
-                <label className="text-sm text-muted-foreground mb-1 block">From Date</label>
-                <Input
-                  type="date"
-                  value={customDateFrom}
-                  onChange={(e) => setCustomDateFrom(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="text-sm text-muted-foreground mb-1 block">To Date</label>
-                <Input
-                  type="date"
-                  value={customDateTo}
-                  onChange={(e) => setCustomDateTo(e.target.value)}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Second Row: Sort & Clear Filters */}
-          <div className="flex items-center justify-between gap-3 pt-2 border-t">
-            <div className="flex items-center gap-2">
-              {/* Sort */}
-              <Select value={sortBy} onValueChange={(value: any) => setSortBy(value)}>
-                <SelectTrigger className="w-[180px]">
-                  <div className="flex items-center gap-2">
-                    <ArrowUpDown className="h-4 w-4" />
-                    <SelectValue placeholder="Sort by" />
-                  </div>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="date-desc">Date (Newest)</SelectItem>
-                  <SelectItem value="date-asc">Date (Oldest)</SelectItem>
-                  <SelectItem value="amount-desc">Amount (High)</SelectItem>
-                  <SelectItem value="amount-asc">Amount (Low)</SelectItem>
-                  <SelectItem value="name-asc">Name (A-Z)</SelectItem>
-                  <SelectItem value="name-desc">Name (Z-A)</SelectItem>
-                </SelectContent>
-              </Select>
-
-              {/* Active Filter Count */}
-              {activeFilterCount > 0 && (
-                <Badge variant="secondary" className="text-xs">
-                  {activeFilterCount} filter{activeFilterCount > 1 ? 's' : ''} active
-                </Badge>
-              )}
-            </div>
-
-            {/* Clear All Button */}
-            {activeFilterCount > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={clearAllFilters}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                <X className="h-4 w-4 mr-1" />
-                Clear All
-              </Button>
-            )}
-          </div>
-
-          {/* Results Count */}
-          <div className="text-sm text-muted-foreground pt-2 border-t">
-            Showing <span className="font-medium text-foreground">{filteredAndSortedTransactions.length}</span> of{" "}
-            <span className="font-medium text-foreground">{transactions.length}</span> payments
-          </div>
-        </CardContent>
-      </Card>
+        {/* Results Count */}
+        <div className="text-sm text-muted-foreground mt-2 md:mt-3">
+          Showing <span className="font-medium text-foreground">{filteredAndSortedTransactions.length}</span> of{" "}
+          <span className="font-medium text-foreground">{transactions.length}</span> payments
+        </div>
+      </div>
 
       <Tabs defaultValue="payments" className="mt-4">
         <TabsList className="grid w-full grid-cols-2">
