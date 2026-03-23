@@ -453,53 +453,68 @@ export default function CashManagementPage() {
                 )}
               </Button>
             </SheetTrigger>
-            <SheetContent side="bottom" className="h-[60vh]">
+            <SheetContent side="bottom" className="h-auto max-h-[70vh]">
               <SheetHeader>
-                <SheetTitle>Date Range Filter</SheetTitle>
+                <SheetTitle>Filter by Date</SheetTitle>
                 <SheetDescription>
-                  Filter collections and expenses by date range
+                  Show data from a specific date onwards
                 </SheetDescription>
               </SheetHeader>
 
-              <div className="mt-6 space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="dateFromMobile">From Date</Label>
+              <div className="mt-6 space-y-6 pb-20">
+                {/* Date Picker - Larger and auto-focus */}
+                <div className="space-y-3">
+                  <Label htmlFor="dateFromMobile" className="text-base font-medium">
+                    From Date
+                  </Label>
                   <Input
                     id="dateFromMobile"
                     type="date"
                     value={dateFrom}
                     onChange={(e) => setDateFrom(e.target.value)}
+                    className="h-12 text-base"
+                    autoFocus
                   />
+                  <p className="text-sm text-muted-foreground">
+                    All data from this date onwards will be shown
+                  </p>
                 </div>
 
-                <p className="text-sm text-muted-foreground">
-                  Currently shows all data since from date
-                </p>
-
                 {useCustomDate && dateFrom && (
-                  <div className="p-3 bg-muted rounded-md text-sm">
-                    Showing data from {formatDate(dateFrom)} onwards
+                  <div className="p-4 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg">
+                    <div className="flex items-start gap-2">
+                      <Calendar className="h-5 w-5 text-green-600 dark:text-green-400 mt-0.5" />
+                      <div>
+                        <p className="font-medium text-green-900 dark:text-green-100">
+                          Active Filter
+                        </p>
+                        <p className="text-sm text-green-700 dark:text-green-300">
+                          Showing data from {formatDate(dateFrom)} onwards
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
 
-              <div className="absolute bottom-0 left-0 right-0 p-4 bg-background border-t space-y-2">
+              <div className="absolute bottom-0 left-0 right-0 p-4 bg-background border-t flex gap-2">
                 <Button
                   onClick={() => {
                     handleApplyDateFilter();
                   }}
                   disabled={!dateFrom}
-                  className="w-full"
+                  className="flex-1 h-12"
                 >
+                  <Calendar className="h-4 w-4 mr-2" />
                   Apply Filter
                 </Button>
                 {useCustomDate && (
                   <Button
                     onClick={handleClearDateFilter}
                     variant="outline"
-                    className="w-full"
+                    className="h-12 px-4"
                   >
-                    Clear Filter
+                    Clear
                   </Button>
                 )}
               </div>
