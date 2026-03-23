@@ -15,6 +15,8 @@ import { RollbackPaymentDialog } from "@/components/rollback/rollback-payment-di
 import { RollbackHistoryTable } from "@/components/rollback/rollback-history-table";
 import { DownloadReceiptButton } from "@/components/receipt/download-receipt-button";
 import { PAYMENT_METHOD_COLORS } from "@/lib/constants";
+import { Pagination, PaginationInfo } from "@/components/ui/pagination";
+import { usePagination } from "@/hooks/use-pagination";
 import { toast } from "sonner";
 
 interface Transaction {
@@ -33,9 +35,9 @@ interface Transaction {
 }
 
 export default function PaymentsPage() {
+  const pagination = usePagination({ limit: 20 });
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
-  const [visibleCount, setVisibleCount] = useState(10);
   const [rollbackDialogOpen, setRollbackDialogOpen] = useState(false);
   const [selectedLedgerId, setSelectedLedgerId] = useState<string | null>(null);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
@@ -59,15 +61,23 @@ export default function PaymentsPage() {
 
   useEffect(() => {
     fetchTransactions();
-  }, []);
+  }, [pagination.page]); // Refetch when page changes
 
   const fetchTransactions = async () => {
     try {
       setLoading(true);
-      const response = await fetch("/api/transactions");
+      const params = pagination.getQueryParams();
+      const response = await fetch(
+        `/api/transactions?page=${params.page}&limit=${params.limit}`
+      );
       if (!response.ok) throw new Error("Failed to fetch transactions");
       const data = await response.json();
       setTransactions(data.transactions || []);
+
+      // Update pagination metadata from API response
+      if (data.pagination) {
+        pagination.setPagination(data.pagination);
+      }
     } catch (error) {
       console.error("Error fetching transactions:", error);
       toast.error("Failed to load transactions");
@@ -378,7 +388,7 @@ export default function PaymentsPage() {
             </div>
           ) : (
             <>
-              {filteredAndSortedTransactions.slice(0, visibleCount).map((transaction) => {
+              {filteredAndSortedTransactions.map((transaction) => {
                 const isExpanded = expandedCards.has(transaction.id);
                 const amount = Number(transaction.amount);
                 const isPositive = amount >= 0;
@@ -527,15 +537,20 @@ export default function PaymentsPage() {
                 );
               })}
 
-              {/* Load More Button */}
-              {visibleCount < filteredAndSortedTransactions.length && (
-                <div className="flex justify-center pt-4">
-                  <Button
-                    variant="outline"
-                    onClick={() => setVisibleCount(prev => prev + 10)}
-                  >
-                    Load 10 More ({filteredAndSortedTransactions.length - visibleCount} remaining)
-                  </Button>
+              {/* Pagination */}
+              {pagination.totalPages > 1 && (
+                <div className="space-y-4 pt-6">
+                  <Pagination
+                    currentPage={pagination.page}
+                    totalPages={pagination.totalPages}
+                    onPageChange={pagination.goToPage}
+                  />
+                  <PaginationInfo
+                    page={pagination.page}
+                    limit={pagination.limit}
+                    total={pagination.total}
+                    className="text-center"
+                  />
                 </div>
               )}
             </>
