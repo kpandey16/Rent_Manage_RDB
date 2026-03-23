@@ -9,8 +9,16 @@ import { OperatorAdjustmentForm } from "@/components/forms/operator-adjustment-f
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Wallet, TrendingDown, TrendingUp, DollarSign, RefreshCw, Calendar } from "lucide-react";
+import { Wallet, TrendingDown, TrendingUp, DollarSign, RefreshCw, Calendar, Filter } from "lucide-react";
 import { format } from "date-fns";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 
 interface CashStatus {
   sinceDate: string | null;
@@ -377,65 +385,138 @@ export default function CashManagementPage() {
         </Button>
       </div>
 
-      {/* Date Range Filter */}
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
-            Date Range Filter
-          </CardTitle>
-          <CardDescription>
-            Filter collections and expenses by date range
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1 space-y-2">
-              <Label htmlFor="dateFrom">From Date</Label>
-              <Input
-                id="dateFrom"
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-              />
-            </div>
-            <div className="flex-1 space-y-2">
-              <Label htmlFor="dateTo">To Date (optional)</Label>
-              <Input
-                id="dateTo"
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                disabled
-              />
-              <p className="text-xs text-muted-foreground">Currently shows all data since from date</p>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-2 md:items-end md:pb-0.5">
-              <Button onClick={handleApplyDateFilter} disabled={!dateFrom} className="w-full sm:w-auto">
-                Apply Filter
-              </Button>
-              {useCustomDate && (
-                <Button onClick={handleClearDateFilter} variant="outline" className="w-full sm:w-auto">
-                  Clear Filter
+      {/* Compact Date Range Filter - Mobile Optimized */}
+      <div className="mb-4">
+        {/* Desktop: Show inline */}
+        <Card className="hidden md:block">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Date Range Filter
+            </CardTitle>
+            <CardDescription>
+              Filter collections and expenses by date range
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="flex-1 space-y-2">
+                <Label htmlFor="dateFrom">From Date</Label>
+                <Input
+                  id="dateFrom"
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                />
+              </div>
+              <div className="flex-1 space-y-2">
+                <Label htmlFor="dateTo">To Date (optional)</Label>
+                <Input
+                  id="dateTo"
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  disabled
+                />
+                <p className="text-xs text-muted-foreground">Currently shows all data since from date</p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2 md:items-end md:pb-0.5">
+                <Button onClick={handleApplyDateFilter} disabled={!dateFrom} className="w-full sm:w-auto">
+                  Apply Filter
                 </Button>
-              )}
+                {useCustomDate && (
+                  <Button onClick={handleClearDateFilter} variant="outline" className="w-full sm:w-auto">
+                    Clear Filter
+                  </Button>
+                )}
+              </div>
             </div>
-          </div>
-          {useCustomDate && dateFrom && (
-            <div className="mt-3 text-sm text-muted-foreground">
-              <p>Showing data from {formatDate(dateFrom)} onwards</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            {useCustomDate && dateFrom && (
+              <div className="mt-3 text-sm text-muted-foreground">
+                <p>Showing data from {formatDate(dateFrom)} onwards</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Mobile: Compact Button */}
+        <div className="md:hidden flex items-center gap-2">
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="outline" className="flex-1">
+                <Calendar className="h-4 w-4 mr-2" />
+                {useCustomDate && dateFrom ? `Since ${formatDate(dateFrom)}` : "Filter by Date"}
+                {useCustomDate && (
+                  <span className="ml-2 px-1.5 py-0.5 text-xs bg-primary text-primary-foreground rounded-full">
+                    1
+                  </span>
+                )}
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="bottom" className="h-[60vh]">
+              <SheetHeader>
+                <SheetTitle>Date Range Filter</SheetTitle>
+                <SheetDescription>
+                  Filter collections and expenses by date range
+                </SheetDescription>
+              </SheetHeader>
+
+              <div className="mt-6 space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="dateFromMobile">From Date</Label>
+                  <Input
+                    id="dateFromMobile"
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                  />
+                </div>
+
+                <p className="text-sm text-muted-foreground">
+                  Currently shows all data since from date
+                </p>
+
+                {useCustomDate && dateFrom && (
+                  <div className="p-3 bg-muted rounded-md text-sm">
+                    Showing data from {formatDate(dateFrom)} onwards
+                  </div>
+                )}
+              </div>
+
+              <div className="absolute bottom-0 left-0 right-0 p-4 bg-background border-t space-y-2">
+                <Button
+                  onClick={() => {
+                    handleApplyDateFilter();
+                  }}
+                  disabled={!dateFrom}
+                  className="w-full"
+                >
+                  Apply Filter
+                </Button>
+                {useCustomDate && (
+                  <Button
+                    onClick={handleClearDateFilter}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    Clear Filter
+                  </Button>
+                )}
+              </div>
+            </SheetContent>
+          </Sheet>
+        </div>
+      </div>
 
       <Tabs defaultValue="dashboard" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-          <TabsTrigger value="history">Transaction History</TabsTrigger>
-          <TabsTrigger value="withdrawals">Withdrawals History</TabsTrigger>
-          <TabsTrigger value="expenses">Expenses History</TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+          <TabsList className="inline-flex w-auto min-w-full md:min-w-0">
+            <TabsTrigger value="dashboard" className="whitespace-nowrap">Dashboard</TabsTrigger>
+            <TabsTrigger value="history" className="whitespace-nowrap">Transaction History</TabsTrigger>
+            <TabsTrigger value="withdrawals" className="whitespace-nowrap">Withdrawals History</TabsTrigger>
+            <TabsTrigger value="expenses" className="whitespace-nowrap">Expenses History</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="dashboard" className="space-y-4">
           {/* Summary Cards */}
