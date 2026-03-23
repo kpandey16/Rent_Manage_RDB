@@ -15,6 +15,7 @@ import { AddTenantForm } from "@/components/forms/add-tenant-form";
 import { VacateRoomForm } from "@/components/forms/vacate-room-form";
 import { ListCard } from "@/components/ui/list-card";
 import { toast } from "sonner";
+import { getPaymentUrgency } from "@/lib/urgency-utils";
 
 type SortOption = "name-asc" | "name-desc" | "balance-asc" | "balance-desc" | "rooms-asc" | "rooms-desc";
 
@@ -26,8 +27,10 @@ interface Tenant {
   monthlyRent: number;
   dues: number;
   creditBalance: number;
+  netBalance: number; // Can be negative (dues) or positive (credit)
   isActive: boolean;
   lastPaidMonth?: string;
+  lastPaidPeriod?: string; // YYYY-MM format for urgency calculation
 }
 
 export default function TenantsPage() {
@@ -54,8 +57,10 @@ export default function TenantsPage() {
           monthlyRent: Number(t.monthly_rent || 0),
           dues: Number(t.total_dues || 0),
           creditBalance: Number(t.credit_balance || 0),
+          netBalance: Number(t.net_balance || 0), // Negative = dues, Positive = credit
           isActive: t.is_active === 1,
           lastPaidMonth: t.last_paid_month && t.last_paid_month !== "Never" ? t.last_paid_month : undefined,
+          lastPaidPeriod: t.last_paid_period || undefined, // YYYY-MM format
         }));
 
       setTenants(transformedTenants);
@@ -172,22 +177,37 @@ export default function TenantsPage() {
                 : { value: "Never paid", className: "text-muted-foreground/60" },
             ];
 
-            // Determine badge
+            // Determine badge with urgency-based color coding
+            const urgency = getPaymentUrgency(tenant.netBalance, tenant.lastPaidPeriod);
+
             let badge;
             if (tenant.dues > 0) {
+              // Map urgency level to badge variant
+              let variant: "default" | "secondary" | "destructive" | "outline";
+              if (urgency.level === "critical" || urgency.level === "high") {
+                variant = "destructive";
+              } else if (urgency.level === "medium") {
+                variant = "outline";
+              } else {
+                variant = "secondary";
+              }
+
               badge = {
                 label: `-₹${tenant.dues.toLocaleString("en-IN")}`,
-                variant: "destructive" as const,
+                variant,
+                className: urgency.color, // Add urgency color
               };
             } else if (tenant.creditBalance > 0) {
               badge = {
                 label: `+₹${tenant.creditBalance.toLocaleString("en-IN")}`,
                 variant: "default" as const,
+                className: "text-green-600",
               };
             } else {
               badge = {
                 label: "Settled",
                 variant: "secondary" as const,
+                className: "text-muted-foreground",
               };
             }
 
