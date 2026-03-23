@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useState } from "react";
 import { useTranslations } from "@/hooks/use-translations";
+import { GlobalSearch } from "@/components/layout/global-search";
 
 export function Header() {
   const pathname = usePathname();
@@ -131,8 +132,13 @@ export function Header() {
           })}
         </nav>
 
+        {/* Global Search */}
+        <div className="ml-auto mr-4">
+          <GlobalSearch />
+        </div>
+
         {/* Right side */}
-        <div className="ml-auto flex items-center gap-2">
+        <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon">
             <Bell className="h-5 w-5" />
             <span className="sr-only">Notifications</span>

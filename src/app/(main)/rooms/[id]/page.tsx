@@ -18,6 +18,7 @@ import { ArrowLeft, User, IndianRupee, Calendar, History, Edit, Loader2 } from "
 import { AllocateRoomForm } from "@/components/forms/allocate-room-form";
 import { EditRoomForm } from "@/components/forms/edit-room-form";
 import { UpdateRentForm } from "@/components/forms/update-rent-form";
+import { formatDate } from "@/lib/date-utils";
 import { toast } from "sonner";
 
 interface CurrentTenant {
@@ -150,7 +151,7 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                   {room.currentTenant.name}
                 </Link>
                 <p className="text-xs text-muted-foreground">
-                  Since {new Date(room.currentTenant.allocated_from).toLocaleDateString("en-IN")}
+                  Since {formatDate(room.currentTenant.allocated_from)}
                 </p>
               </div>
             )}
@@ -193,7 +194,7 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                     <div>
                       <p className="font-medium">₹{Number(history.new_rent).toLocaleString("en-IN")}/mo</p>
                       <p className="text-sm text-muted-foreground">
-                        From {new Date(history.effective_from).toLocaleDateString("en-IN")}
+                        From {formatDate(history.effective_from)}
                       </p>
                     </div>
                     {idx === 0 && <Badge>Current</Badge>}
@@ -215,7 +216,7 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                   <TableBody>
                     {room.rentHistory.map((history, idx) => (
                       <TableRow key={idx}>
-                        <TableCell>{new Date(history.effective_from).toLocaleDateString("en-IN")}</TableCell>
+                        <TableCell>{formatDate(history.effective_from)}</TableCell>
                         <TableCell className="text-right font-medium">₹{Number(history.new_rent).toLocaleString("en-IN")}</TableCell>
                         <TableCell className="text-muted-foreground">{history.created_by || "-"}</TableCell>
                         <TableCell className="text-right">
@@ -253,7 +254,7 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                       <Badge variant="outline">{tenant.duration}</Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      {new Date(tenant.from_date).toLocaleDateString("en-IN")} - {new Date(tenant.to_date).toLocaleDateString("en-IN")}
+                      {formatDate(tenant.from_date)} - {formatDate(tenant.to_date)}
                     </p>
                   </div>
                 ))}
@@ -274,8 +275,8 @@ export default function RoomDetailPage({ params }: { params: Promise<{ id: strin
                     {room.pastTenants.map((tenant) => (
                       <TableRow key={tenant.id}>
                         <TableCell className="font-medium">{tenant.name}</TableCell>
-                        <TableCell>{new Date(tenant.from_date).toLocaleDateString("en-IN")}</TableCell>
-                        <TableCell>{new Date(tenant.to_date).toLocaleDateString("en-IN")}</TableCell>
+                        <TableCell>{formatDate(tenant.from_date)}</TableCell>
+                        <TableCell>{formatDate(tenant.to_date)}</TableCell>
                         <TableCell className="text-right">{tenant.duration}</TableCell>
                       </TableRow>
                     ))}

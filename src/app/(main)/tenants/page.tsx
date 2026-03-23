@@ -1,8 +1,6 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import Link from "next/link";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -11,11 +9,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Phone, DoorOpen, ChevronRight, ArrowUpDown, Loader2 } from "lucide-react";
+import { ArrowUpDown, Loader2 } from "lucide-react";
 import { SearchFilter } from "@/components/search-filter";
 import { AddTenantForm } from "@/components/forms/add-tenant-form";
 import { VacateRoomForm } from "@/components/forms/vacate-room-form";
+import { ListCard } from "@/components/ui/list-card";
 import { toast } from "sonner";
+import { getPaymentUrgency } from "@/lib/urgency-utils";
 
 type SortOption = "name-asc" | "name-desc" | "balance-asc" | "balance-desc" | "rooms-asc" | "rooms-desc";
 
@@ -27,7 +27,10 @@ interface Tenant {
   monthlyRent: number;
   dues: number;
   creditBalance: number;
+  netBalance: number; // Can be negative (dues) or positive (credit)
   isActive: boolean;
+  lastPaidMonth?: string;
+  lastPaidPeriod?: string; // YYYY-MM format for urgency calculation
 }
 
 export default function TenantsPage() {
@@ -54,7 +57,10 @@ export default function TenantsPage() {
           monthlyRent: Number(t.monthly_rent || 0),
           dues: Number(t.total_dues || 0),
           creditBalance: Number(t.credit_balance || 0),
+          netBalance: Number(t.net_balance || 0), // Negative = dues, Positive = credit
           isActive: t.is_active === 1,
+          lastPaidMonth: t.last_paid_month && t.last_paid_month !== "Never" ? t.last_paid_month : undefined,
+          lastPaidPeriod: t.last_paid_period || undefined, // YYYY-MM format
         }));
 
       setTenants(transformedTenants);
@@ -159,52 +165,62 @@ export default function TenantsPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {filteredAndSortedTenants.map((tenant) => (
-            <Link key={tenant.id} href={`/tenants/${tenant.id}`}>
-              <Card className="cursor-pointer hover:bg-muted/50 transition-colors">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 space-y-1">
-                      <h3 className="font-medium">{tenant.name}</h3>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <Phone className="h-3 w-3" />
-                          {tenant.phone}
-                        </div>
-                        {tenant.rooms.length > 0 ? (
-                          <div className="flex items-center gap-1">
-                            <DoorOpen className="h-3 w-3" />
-                            {tenant.rooms.join(", ")}
-                          </div>
-                        ) : (
-                          <Badge variant="outline" className="text-xs">
-                            No room allocated
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        Monthly Rent: ₹{tenant.monthlyRent.toLocaleString("en-IN")}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {tenant.dues > 0 ? (
-                        <Badge variant="destructive">
-                          Dues: ₹{tenant.dues.toLocaleString("en-IN")}
-                        </Badge>
-                      ) : tenant.creditBalance > 0 ? (
-                        <Badge variant="default">
-                          Credit: ₹{tenant.creditBalance.toLocaleString("en-IN")}
-                        </Badge>
-                      ) : (
-                        <Badge variant="secondary">Settled</Badge>
-                      )}
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
+          {filteredAndSortedTenants.map((tenant) => {
+            // Build metadata array
+            const metadata = [
+              { value: tenant.phone },
+              tenant.rooms.length > 0
+                ? { value: tenant.rooms.join(", ") }
+                : { value: "No rooms", className: "text-muted-foreground/60" },
+              tenant.lastPaidMonth
+                ? { value: `Last paid: ${tenant.lastPaidMonth}` }
+                : { value: "Never paid", className: "text-muted-foreground/60" },
+            ];
+
+            // Determine badge with urgency-based color coding
+            const urgency = getPaymentUrgency(tenant.netBalance, tenant.lastPaidPeriod);
+
+            let badge;
+            if (tenant.dues > 0) {
+              // Map urgency level to badge variant
+              let variant: "default" | "secondary" | "destructive" | "outline";
+              if (urgency.level === "critical" || urgency.level === "high") {
+                variant = "destructive";
+              } else if (urgency.level === "medium") {
+                variant = "outline";
+              } else {
+                variant = "secondary";
+              }
+
+              badge = {
+                label: `-₹${tenant.dues.toLocaleString("en-IN")}`,
+                variant,
+                className: urgency.color, // Add urgency color
+              };
+            } else if (tenant.creditBalance > 0) {
+              badge = {
+                label: `+₹${tenant.creditBalance.toLocaleString("en-IN")}`,
+                variant: "default" as const,
+                className: "text-green-600",
+              };
+            } else {
+              badge = {
+                label: "Settled",
+                variant: "secondary" as const,
+                className: "text-muted-foreground",
+              };
+            }
+
+            return (
+              <ListCard
+                key={tenant.id}
+                title={tenant.name}
+                metadata={metadata}
+                badge={badge}
+                href={`/tenants/${tenant.id}`}
+              />
+            );
+          })}
           {filteredAndSortedTenants.length === 0 && (
             <div className="text-center py-8 text-muted-foreground">
               {tenants.length === 0 ? "No tenants yet. Add your first tenant above!" : "No tenants found matching your search."}

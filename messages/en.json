@@ -10,6 +10,11 @@
     "settings": "Settings",
     "logout": "Logout"
   },
+  "search": {
+    "placeholder": "Search tenants, rooms...",
+    "noResults": "No results found",
+    "typeMore": "Type at least 2 characters"
+  },
   "dashboard": {
     "title": "Dashboard",
     "occupiedRooms": "Occupied Rooms",
