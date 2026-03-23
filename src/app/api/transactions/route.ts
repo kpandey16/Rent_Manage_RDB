@@ -678,6 +678,28 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const tenantId = searchParams.get("tenantId");
 
+    // Pagination parameters
+    const page = parseInt(searchParams.get("page") || "1", 10);
+    const limit = parseInt(searchParams.get("limit") || "50", 10);
+    const offset = (page - 1) * limit;
+
+    // Get total count for pagination metadata
+    let countSql = `
+      SELECT COUNT(DISTINCT COALESCE(tl.document_id, tl.id)) as total
+      FROM tenant_ledger tl
+      JOIN tenants t ON tl.tenant_id = t.id
+    `;
+
+    const countArgs: any[] = [];
+    if (tenantId) {
+      countSql += " WHERE tl.tenant_id = ?";
+      countArgs.push(tenantId);
+    }
+
+    const countResult = await db.execute({ sql: countSql, args: countArgs });
+    const totalItems = Number(countResult.rows[0]?.total || 0);
+    const totalPages = Math.ceil(totalItems / limit);
+
     let sql = `
       SELECT
         tl.id,
@@ -699,13 +721,15 @@ export async function GET(request: NextRequest) {
       LEFT JOIN users u ON tl.created_by = u.id
     `;
 
-    const args = [];
+    const args: any[] = [];
     if (tenantId) {
       sql += " WHERE tl.tenant_id = ?";
       args.push(tenantId);
     }
 
     sql += " ORDER BY tl.transaction_date DESC, tl.created_at DESC";
+    sql += " LIMIT ? OFFSET ?";
+    args.push(limit, offset);
 
     const result = await db.execute({ sql, args });
 
@@ -838,6 +862,13 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       transactions: transactionsWithDetails,
+      pagination: {
+        page,
+        limit,
+        total: totalItems,
+        totalPages,
+        hasMore: page < totalPages,
+      },
     });
   } catch (error) {
     console.error("Error fetching transactions:", error);
