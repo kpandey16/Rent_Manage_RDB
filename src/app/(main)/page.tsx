@@ -72,12 +72,21 @@ export default function Home() {
             const totalDues = Number(tenant.total_dues || 0);
             const pendingMonths = monthlyRent > 0 ? Math.floor(totalDues / monthlyRent) : 0;
 
+            // Format last paid month from YYYY-MM to MMM-YY
+            let lastPaidMonth = "Never";
+            if (tenant.last_paid_month && tenant.last_paid_month !== "Never") {
+              const [year, month] = tenant.last_paid_month.split("-");
+              const date = new Date(parseInt(year), parseInt(month) - 1);
+              const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+              lastPaidMonth = `${monthNames[date.getMonth()]}-${year.substring(2)}`;
+            }
+
             return {
               id: tenant.id,
               name: tenant.name,
               rooms: roomCodes,
               monthlyRent,
-              lastPaidMonth: tenant.last_paid_month || "Never",
+              lastPaidMonth,
               pendingMonths,
               totalDues,
               securityDeposit: Number(tenant.security_deposit_balance || 0),
