@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Percent, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Percent, Loader2, FileText, Download, FileSpreadsheet } from "lucide-react";
 import { DefaultersChart } from "@/components/charts/defaulters-chart";
 import { CollectionChart } from "@/components/charts/collection-chart";
+import { exportToCSV, exportToPDF, formatTenantForExport } from "@/lib/export-utils";
 import { toast } from "sonner";
 
 interface ReportsData {
@@ -37,9 +39,12 @@ interface ReportsData {
 export default function ReportsPage() {
   const [data, setData] = useState<ReportsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [tenants, setTenants] = useState<any[]>([]);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     fetchReports();
+    fetchTenants();
   }, []);
 
   const fetchReports = async () => {
@@ -54,6 +59,51 @@ export default function ReportsPage() {
       toast.error("Failed to load reports");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchTenants = async () => {
+    try {
+      const response = await fetch("/api/tenants");
+      if (!response.ok) throw new Error("Failed to fetch tenants");
+      const data = await response.json();
+      setTenants(data.tenants || []);
+    } catch (error) {
+      console.error("Error fetching tenants:", error);
+    }
+  };
+
+  const handleExportCSV = () => {
+    try {
+      setExporting(true);
+      const exportData = tenants
+        .filter(t => t.is_active === 1)
+        .map(formatTenantForExport);
+
+      exportToCSV(exportData, 'tenant-overview');
+      toast.success("CSV exported successfully!");
+    } catch (error) {
+      console.error("Export error:", error);
+      toast.error("Failed to export CSV");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportPDF = () => {
+    try {
+      setExporting(true);
+      const exportData = tenants
+        .filter(t => t.is_active === 1)
+        .map(formatTenantForExport);
+
+      exportToPDF(exportData, 'tenant-overview');
+      toast.success("PDF exported successfully!");
+    } catch (error) {
+      console.error("Export error:", error);
+      toast.error("Failed to export PDF");
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -156,6 +206,120 @@ export default function ReportsPage() {
               </Badge>
             </div>
           ))}
+        </CardContent>
+      </Card>
+
+      {/* Export Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Download className="h-5 w-5" />
+            Export Tenant Overview
+          </CardTitle>
+          <CardDescription>
+            Download complete tenant data including rent, dues, credits, and payment history
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Export Info */}
+          <div className="p-4 bg-muted/50 rounded-lg space-y-2">
+            <p className="text-sm font-medium">Export Includes:</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-muted-foreground">
+              <div className="flex items-center gap-1">
+                <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                <span>Tenant Name</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                <span>Last Paid</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                <span>Monthly Rent</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                <span>Pending Months</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                <span>Total Dues</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                <span>Credit Balance</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                <span>Net Payable</span>
+              </div>
+              <div className="flex items-center gap-1 text-muted-foreground/60">
+                <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                <span>{tenants.filter(t => t.is_active === 1).length} Active Tenants</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Export Buttons */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Button
+              onClick={handleExportPDF}
+              disabled={exporting || tenants.length === 0}
+              className="flex-1"
+              variant="default"
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              Export as PDF
+            </Button>
+            <Button
+              onClick={handleExportCSV}
+              disabled={exporting || tenants.length === 0}
+              className="flex-1"
+              variant="outline"
+            >
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Export as CSV
+            </Button>
+          </div>
+
+          {/* Stats */}
+          {tenants.length > 0 && (
+            <div className="pt-3 border-t">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                <div>
+                  <p className="text-muted-foreground">Total Tenants</p>
+                  <p className="font-semibold">{tenants.filter(t => t.is_active === 1).length}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Total Dues</p>
+                  <p className="font-semibold text-destructive">
+                    ₹{tenants
+                      .filter(t => t.is_active === 1)
+                      .reduce((sum, t) => sum + Number(t.total_dues || 0), 0)
+                      .toLocaleString('en-IN')}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Total Credits</p>
+                  <p className="font-semibold text-green-600">
+                    ₹{tenants
+                      .filter(t => t.is_active === 1)
+                      .reduce((sum, t) => sum + Number(t.credit_balance || 0), 0)
+                      .toLocaleString('en-IN')}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Net Payable</p>
+                  <p className="font-semibold">
+                    ₹{tenants
+                      .filter(t => t.is_active === 1)
+                      .reduce((sum, t) => sum + Math.max(0, Number(t.total_dues || 0) - Number(t.credit_balance || 0)), 0)
+                      .toLocaleString('en-IN')}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
