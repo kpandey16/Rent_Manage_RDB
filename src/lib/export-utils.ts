@@ -170,12 +170,16 @@ export function formatTenantForExport(tenant: any): TenantExportData {
   const totalDues = Number(tenant.total_dues || 0);
   const creditBalance = Number(tenant.credit_balance || 0);
   const netPayable = Math.max(0, totalDues - creditBalance);
+  const monthlyRent = Number(tenant.monthly_rent || 0);
+
+  // Calculate pending months from total dues and monthly rent
+  const pendingMonths = monthlyRent > 0 ? Math.floor(totalDues / monthlyRent) : 0;
 
   return {
     name: tenant.name,
     lastPaid: tenant.last_paid_month || 'Never',
-    monthlyRent: Number(tenant.monthly_rent || 0),
-    pendingMonths: tenant.pending_months || 0,
+    monthlyRent,
+    pendingMonths,
     totalDues,
     creditBalance,
     netPayable,
