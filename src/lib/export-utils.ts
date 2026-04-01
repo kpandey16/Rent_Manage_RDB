@@ -164,6 +164,33 @@ export function exportToPDF(data: TenantExportData[], filename: string = 'tenant
 }
 
 /**
+ * Calculate pending months based on last payment date
+ */
+function calculatePendingMonths(lastPaidPeriod: string | null): number {
+  if (!lastPaidPeriod || lastPaidPeriod === 'Never') {
+    // If never paid, we can't determine pending months from this data alone
+    // Return 0 to avoid confusion (would need move-in date to calculate)
+    return 0;
+  }
+
+  // Parse YYYY-MM format
+  const [year, month] = lastPaidPeriod.split('-').map(Number);
+  const lastPaid = new Date(year, month - 1); // month is 0-indexed in JS
+
+  const now = new Date();
+  const currentMonth = new Date(now.getFullYear(), now.getMonth());
+
+  // Calculate difference in months
+  const yearsDiff = currentMonth.getFullYear() - lastPaid.getFullYear();
+  const monthsDiff = currentMonth.getMonth() - lastPaid.getMonth();
+
+  const totalMonthsDiff = yearsDiff * 12 + monthsDiff;
+
+  // If last paid is current month or future, no pending months
+  return Math.max(0, totalMonthsDiff);
+}
+
+/**
  * Format tenant data for export
  */
 export function formatTenantForExport(tenant: any): TenantExportData {
@@ -172,8 +199,8 @@ export function formatTenantForExport(tenant: any): TenantExportData {
   const netPayable = Math.max(0, totalDues - creditBalance);
   const monthlyRent = Number(tenant.monthly_rent || 0);
 
-  // Calculate pending months from total dues and monthly rent
-  const pendingMonths = monthlyRent > 0 ? Math.floor(totalDues / monthlyRent) : 0;
+  // Calculate pending months based on time since last payment
+  const pendingMonths = calculatePendingMonths(tenant.last_paid_period);
 
   return {
     name: tenant.name,
