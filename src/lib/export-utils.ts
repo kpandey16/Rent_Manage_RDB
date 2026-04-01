@@ -25,21 +25,30 @@ export function exportToCSV(data: TenantExportData[], filename: string = 'tenant
   const headers = [
     'Name',
     'Last Paid',
-    'Monthly Rent',
+    'Monthly Rent (Rs.)',
     'Pending Months',
-    'Total Dues',
-    'Credit Balance',
-    'Net Payable',
+    'Total Dues (Rs.)',
+    'Credit Balance (Rs.)',
+    'Net Payable (Rs.)',
   ];
+
+  // Helper to escape CSV fields (handle commas in names)
+  const escapeCSV = (field: string | number): string => {
+    const str = String(field);
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
 
   // Convert data to CSV rows
   const rows = data.map(tenant => [
-    tenant.name,
-    tenant.lastPaid,
+    escapeCSV(tenant.name),
+    escapeCSV(tenant.lastPaid),
     tenant.monthlyRent,
     tenant.pendingMonths,
     tenant.totalDues,
-    tenant.creditBalance,
+    tenant.creditBalance > 0 ? tenant.creditBalance : 0,
     tenant.netPayable,
   ]);
 
@@ -78,15 +87,20 @@ export function exportToPDF(data: TenantExportData[], filename: string = 'tenant
   doc.setTextColor(100);
   doc.text(`Generated: ${new Date().toLocaleDateString('en-IN')}`, 14, 28);
 
+  // Helper function to format currency without locale (avoids spacing issues)
+  const formatCurrency = (amount: number): string => {
+    return amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  };
+
   // Prepare table data
   const tableData = data.map(tenant => [
     tenant.name,
     tenant.lastPaid,
-    `₹${tenant.monthlyRent.toLocaleString('en-IN')}`,
+    formatCurrency(tenant.monthlyRent),
     tenant.pendingMonths.toString(),
-    `₹${tenant.totalDues.toLocaleString('en-IN')}`,
-    tenant.creditBalance > 0 ? `₹${tenant.creditBalance.toLocaleString('en-IN')}` : '-',
-    `₹${tenant.netPayable.toLocaleString('en-IN')}`,
+    formatCurrency(tenant.totalDues),
+    tenant.creditBalance > 0 ? formatCurrency(tenant.creditBalance) : '-',
+    formatCurrency(tenant.netPayable),
   ]);
 
   // Add table
@@ -96,32 +110,35 @@ export function exportToPDF(data: TenantExportData[], filename: string = 'tenant
     startY: 35,
     theme: 'grid',
     styles: {
-      fontSize: 9,
-      cellPadding: 3,
+      fontSize: 8,
+      cellPadding: 2,
+      overflow: 'linebreak',
+      cellWidth: 'wrap',
     },
     headStyles: {
       fillColor: [71, 85, 105], // slate-600
       textColor: 255,
       fontStyle: 'bold',
+      fontSize: 9,
     },
     alternateRowStyles: {
       fillColor: [248, 250, 252], // slate-50
     },
     columnStyles: {
-      0: { cellWidth: 40 }, // Name
-      1: { cellWidth: 25 }, // Last Paid
-      2: { cellWidth: 25, halign: 'right' }, // Monthly Rent
-      3: { cellWidth: 20, halign: 'center' }, // Pending
-      4: { cellWidth: 25, halign: 'right' }, // Total Dues
-      5: { cellWidth: 25, halign: 'right' }, // Credit
-      6: { cellWidth: 30, halign: 'right' }, // Net Payable
+      0: { cellWidth: 45 }, // Name - wider
+      1: { cellWidth: 22 }, // Last Paid
+      2: { cellWidth: 24, halign: 'right' }, // Monthly Rent
+      3: { cellWidth: 18, halign: 'center' }, // Pending
+      4: { cellWidth: 24, halign: 'right' }, // Total Dues
+      5: { cellWidth: 20, halign: 'right' }, // Credit
+      6: { cellWidth: 25, halign: 'right' }, // Net Payable
     },
   });
 
   // Add summary at bottom
   const finalY = (doc as any).lastAutoTable.finalY + 10;
 
-  doc.setFontSize(11);
+  doc.setFontSize(12);
   doc.setTextColor(0);
   doc.text('Summary', 14, finalY);
 
@@ -133,9 +150,14 @@ export function exportToPDF(data: TenantExportData[], filename: string = 'tenant
   const totalNet = data.reduce((sum, t) => sum + t.netPayable, 0);
 
   doc.text(`Total Tenants: ${data.length}`, 14, finalY + 8);
-  doc.text(`Total Dues: ₹${totalDues.toLocaleString('en-IN')}`, 14, finalY + 14);
-  doc.text(`Total Credit: ₹${totalCredit.toLocaleString('en-IN')}`, 14, finalY + 20);
-  doc.text(`Net Payable: ₹${totalNet.toLocaleString('en-IN')}`, 14, finalY + 26);
+  doc.text(`Total Dues: Rs. ${formatCurrency(totalDues)}`, 14, finalY + 14);
+  doc.text(`Total Credit: Rs. ${formatCurrency(totalCredit)}`, 14, finalY + 20);
+  doc.text(`Net Payable: Rs. ${formatCurrency(totalNet)}`, 14, finalY + 26);
+
+  // Add note about currency
+  doc.setFontSize(8);
+  doc.setTextColor(120);
+  doc.text('Note: All amounts in Indian Rupees (Rs.)', 14, finalY + 34);
 
   // Save PDF
   doc.save(`${filename}-${new Date().toISOString().split('T')[0]}.pdf`);
