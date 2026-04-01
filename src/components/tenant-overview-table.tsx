@@ -136,12 +136,18 @@ export function TenantOverviewTable({
 
   const handleMobileSortChange = (value: string) => {
     const [field, direction] = value.split("-") as [SortField, SortDirection];
-    // Trigger sort - parent will handle the logic
+
+    // If changing to a different field, call onSort once
     if (field !== sortField) {
       onSort(field);
-    }
-    if (direction !== sortDirection) {
-      onSort(field); // Toggle direction by calling sort again
+      // If the default direction (asc) doesn't match what we want, toggle it
+      if (direction === "desc") {
+        // The onSort will set it to "asc" first, so we need to call again to toggle to "desc"
+        setTimeout(() => onSort(field), 0);
+      }
+    } else if (direction !== sortDirection) {
+      // Same field, different direction - just toggle
+      onSort(field);
     }
   };
 
