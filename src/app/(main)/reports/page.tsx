@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Percent, Loader2, FileText, Download, FileSpreadsheet } from "lucide-react";
+import { Percent, Loader2, FileText, Download, FileSpreadsheet, Languages } from "lucide-react";
 import { DefaultersChart } from "@/components/charts/defaulters-chart";
 import { CollectionChart } from "@/components/charts/collection-chart";
 import { exportToCSV, exportToPDF, formatTenantForExport } from "@/lib/export-utils";
+import { exportToPDFHindi, exportToCSVHindi } from "@/lib/export-hindi-print";
 import { toast } from "sonner";
 
 interface ReportsData {
@@ -102,6 +103,40 @@ export default function ReportsPage() {
     } catch (error) {
       console.error("Export error:", error);
       toast.error("Failed to export PDF");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportPDFHindi = () => {
+    try {
+      setExporting(true);
+      const exportData = tenants
+        .filter(t => t.is_active === 1)
+        .map(formatTenantForExport);
+
+      exportToPDFHindi(exportData, 'tenant-overview-hindi');
+      toast.success("हिंदी PDF तैयार! (Hindi PDF ready!)");
+    } catch (error) {
+      console.error("Export error:", error);
+      toast.error("Failed to export Hindi PDF");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportCSVHindi = () => {
+    try {
+      setExporting(true);
+      const exportData = tenants
+        .filter(t => t.is_active === 1)
+        .map(formatTenantForExport);
+
+      exportToCSVHindi(exportData, 'tenant-overview-hindi');
+      toast.success("हिंदी CSV निर्यात हो गया! (Hindi CSV exported!)");
+    } catch (error) {
+      console.error("Export error:", error);
+      toast.error("Failed to export Hindi CSV");
     } finally {
       setExporting(false);
     }
@@ -260,26 +295,60 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          {/* Export Buttons */}
-          <div className="flex flex-col sm:flex-row gap-3">
-            <Button
-              onClick={handleExportPDF}
-              disabled={exporting || tenants.length === 0}
-              className="flex-1"
-              variant="default"
-            >
-              <FileText className="h-4 w-4 mr-2" />
-              Export as PDF
-            </Button>
-            <Button
-              onClick={handleExportCSV}
-              disabled={exporting || tenants.length === 0}
-              className="flex-1"
-              variant="outline"
-            >
-              <FileSpreadsheet className="h-4 w-4 mr-2" />
-              Export as CSV
-            </Button>
+          {/* Export Buttons - English */}
+          <div>
+            <p className="text-sm font-medium mb-2">English Export:</p>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button
+                onClick={handleExportPDF}
+                disabled={exporting || tenants.length === 0}
+                className="flex-1"
+                variant="default"
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                Export as PDF
+              </Button>
+              <Button
+                onClick={handleExportCSV}
+                disabled={exporting || tenants.length === 0}
+                className="flex-1"
+                variant="outline"
+              >
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                Export as CSV
+              </Button>
+            </div>
+          </div>
+
+          {/* Export Buttons - Hindi */}
+          <div className="pt-3 border-t">
+            <p className="text-sm font-medium mb-2 flex items-center gap-2">
+              <Languages className="h-4 w-4" />
+              हिंदी में निर्यात (Hindi Export):
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button
+                onClick={handleExportPDFHindi}
+                disabled={exporting || tenants.length === 0}
+                className="flex-1"
+                variant="secondary"
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                PDF (हिंदी)
+              </Button>
+              <Button
+                onClick={handleExportCSVHindi}
+                disabled={exporting || tenants.length === 0}
+                className="flex-1"
+                variant="outline"
+              >
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                CSV (हिंदी)
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              PDF: Opens in new window → Click "प्रिंट / PDF सेव करें" → Save as PDF
+            </p>
           </div>
 
           {/* Stats */}
