@@ -50,7 +50,7 @@ interface TenantOverviewTableProps {
   onToggleColumn: (column: "securityDeposit" | "creditBalance") => void;
   sortField: SortField;
   sortDirection: SortDirection;
-  onSort: (field: SortField) => void;
+  onSort: (field: SortField, direction?: SortDirection) => void;
   debugMode?: boolean;
   tenantsOptimized?: TenantOverview[];
 }
@@ -67,7 +67,7 @@ function SortableHeader({
   field: SortField;
   currentField: SortField;
   currentDirection: SortDirection;
-  onSort: (field: SortField) => void;
+  onSort: (field: SortField, direction?: SortDirection) => void;
   className?: string;
 }) {
   const isActive = field === currentField;
@@ -136,19 +136,8 @@ export function TenantOverviewTable({
 
   const handleMobileSortChange = (value: string) => {
     const [field, direction] = value.split("-") as [SortField, SortDirection];
-
-    // If changing to a different field, call onSort once
-    if (field !== sortField) {
-      onSort(field);
-      // If the default direction (asc) doesn't match what we want, toggle it
-      if (direction === "desc") {
-        // The onSort will set it to "asc" first, so we need to call again to toggle to "desc"
-        setTimeout(() => onSort(field), 0);
-      }
-    } else if (direction !== sortDirection) {
-      // Same field, different direction - just toggle
-      onSort(field);
-    }
+    // Pass both field and direction directly
+    onSort(field, direction);
   };
 
   return (

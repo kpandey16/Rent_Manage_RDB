@@ -148,10 +148,16 @@ export default function Home() {
     }));
   };
 
-  const handleSort = (field: SortField) => {
-    if (field === sortField) {
+  const handleSort = (field: SortField, direction?: SortDirection) => {
+    if (direction) {
+      // Direct set (from mobile dropdown)
+      setSortField(field);
+      setSortDirection(direction);
+    } else if (field === sortField) {
+      // Toggle direction (from desktop header click)
       setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
     } else {
+      // New field (from desktop header click)
       setSortField(field);
       setSortDirection("asc");
     }
