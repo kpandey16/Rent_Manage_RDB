@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
 
     // Get user's current password hash
     const userResult = await db.execute({
-      sql: 'SELECT password FROM users WHERE id = ?',
+      sql: 'SELECT password_hash FROM users WHERE id = ?',
       args: [currentUser.id],
     });
 
