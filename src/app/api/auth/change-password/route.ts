@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     }
 
     const user = userResult.rows[0];
-    const passwordHash = user.password as string;
+    const passwordHash = user.password_hash as string;
 
     // Verify current password
     const isPasswordValid = await bcrypt.compare(currentPassword, passwordHash);
