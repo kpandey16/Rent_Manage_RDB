@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
 
     // Update password
     await db.execute({
-      sql: 'UPDATE users SET password = ? WHERE id = ?',
+      sql: 'UPDATE users SET password_hash = ? WHERE id = ?',
       args: [newPasswordHash, currentUser.id],
     });
 
